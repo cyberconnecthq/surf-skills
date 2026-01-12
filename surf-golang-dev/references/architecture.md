@@ -3,7 +3,7 @@
 ## Project Overview
 
 | Project | Purpose | API Type | Key Features |
-|---------|---------|----------|--------------||
+|---------|---------|----------|--------------|
 | **muninn** | Crypto project analysis API | REST (Gin) + Swagger | User auth, project data, trending, subscriptions |
 | **argus** | Tweet monitoring & analytics | gRPC | Real-time stream processing, signal detection, mindshare |
 
