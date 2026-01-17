@@ -49,9 +49,7 @@ Branch naming conventions:
 
 ```bash
 git add -A
-git commit -m "<commit-message>
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+git commit -m "<commit-message>"
 ```
 
 Commit message format:
@@ -80,8 +78,6 @@ PR body format:
 
 ## Test plan
 - [ ] <test items>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 ### 6. Wait for CI
