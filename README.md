@@ -8,6 +8,7 @@ Claude Code skills for Surf platform development.
 |-------|-------------|-----|
 | `surf-golang-dev` | Go development guide (muninn, argus) | Backend engineers |
 | `surf-push-code` | Automate Git workflow (branch, commit, PR, merge) | All engineers |
+| `langfuse-trace-analysis` | Analyze Langfuse traces for debugging agent execution | AI/Agent engineers |
 
 ## Setup
 
@@ -30,6 +31,9 @@ ln -s surf-skills/surf-push-code surf-push-code
 
 # Backend engineers - enable Go skill
 ln -s surf-skills/surf-golang-dev surf-golang-dev
+
+# AI/Agent engineers - enable trace analysis skill
+ln -s surf-skills/langfuse-trace-analysis langfuse-trace-analysis
 
 # Frontend engineers - enable frontend skill (coming soon)
 # ln -s surf-skills/surf-frontend-dev surf-frontend-dev
