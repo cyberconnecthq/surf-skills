@@ -8,6 +8,7 @@ Claude Code skills for Surf platform development.
 |-------|-------------|-----|
 | `surf-golang-dev` | Go development guide (muninn, argus) | Backend engineers |
 | `surf-push-code` | Automate Git workflow (branch, commit, PR, merge) | All engineers |
+| `surf-db-debug` | Query staging/production databases via SSH bastion | All engineers |
 | `langfuse-trace-analysis` | Analyze Langfuse traces for debugging agent execution | AI/Agent engineers |
 
 ## Setup
@@ -32,12 +33,28 @@ ln -s surf-skills/surf-push-code surf-push-code
 # Backend engineers - enable Go skill
 ln -s surf-skills/surf-golang-dev surf-golang-dev
 
+# Database debugging - enable db skill (requires additional setup)
+ln -s surf-skills/surf-db-debug surf-db-debug
+
 # AI/Agent engineers - enable trace analysis skill
 ln -s surf-skills/langfuse-trace-analysis langfuse-trace-analysis
 
 # Frontend engineers - enable frontend skill (coming soon)
 # ln -s surf-skills/surf-frontend-dev surf-frontend-dev
 ```
+
+### 4. Additional Setup for surf-db-debug
+
+The database debugging skill requires a private configuration file with your connection details. This file is **never committed to git**.
+
+```bash
+# Run setup check - Claude will guide you through configuration
+~/.claude/skills/surf-db-debug/scripts/surf-db-query --check-setup
+```
+
+No external dependencies needed - uses Python3's built-in `json` module.
+
+See `surf-db-debug/references/setup.md` for detailed setup instructions.
 
 ### 3. Sync updates
 

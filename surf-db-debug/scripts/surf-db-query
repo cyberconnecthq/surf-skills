@@ -1,0 +1,629 @@
+#!/usr/bin/env bash
+
+# surf-db-query - Secure database query tool with SSH tunnel support
+# Designed for AI-assisted database debugging
+
+set -euo pipefail
+
+CONFIG_FILE="${HOME}/.config/surf-db/config.json"
+TUNNEL_PID_DIR="${HOME}/.config/surf-db/tunnels"
+SOCKET_DIR="${HOME}/.ssh/sockets"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Default values
+ENV=""
+DB=""
+SQL=""
+FORMAT="table"
+WRITE_MODE=false
+TUNNEL_ACTION=""
+
+usage() {
+    cat << EOF
+Usage: surf-db-query [OPTIONS]
+
+Options:
+    --env ENV           Environment (stg, prd) or env:db (stg:main, stg:analytics)
+    --sql SQL           SQL query to execute
+    --format FORMAT     Output format: table, csv, json (default: table)
+    --write             Required flag for write operations (INSERT, UPDATE, DELETE, etc.)
+    --tunnel ACTION     Tunnel management: start, stop, status
+    --check-setup       Verify configuration is complete
+    --list-dbs          List available databases for an environment
+    --help              Show this help message
+
+Examples:
+    surf-db-query --check-setup
+    surf-db-query --env stg --list-dbs
+    surf-db-query --env stg --tunnel start              # Uses default db
+    surf-db-query --env stg:analytics --tunnel start    # Specific db
+    surf-db-query --env stg --sql "SELECT * FROM users LIMIT 5"
+    surf-db-query --env stg:main --sql "UPDATE users SET active=true WHERE id=1" --write
+EOF
+}
+
+log_info() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}✗${NC} $1" >&2
+}
+
+# Check if a command exists
+command_exists() {
+    command -v "$1" &> /dev/null
+}
+
+# Parse JSON value
+# Usage: json_get "environments.stg.bastion.host"
+json_get() {
+    local path="$1"
+    python3 << EOF
+import json
+import sys
+
+with open("$CONFIG_FILE", 'r') as f:
+    config = json.load(f)
+
+keys = "$path".split('.')
+value = config
+try:
+    for key in keys:
+        value = value[key]
+    if value is not None:
+        print(value)
+except (KeyError, TypeError):
+    sys.exit(1)
+EOF
+}
+
+# Parse ENV argument into ENV and DB
+# Input: "stg" or "stg:main"
+parse_env_arg() {
+    local arg="$1"
+    if [[ "$arg" == *":"* ]]; then
+        ENV="${arg%%:*}"
+        DB="${arg#*:}"
+    else
+        ENV="$arg"
+        DB=""
+    fi
+}
+
+# Get the database name to use (explicit or default)
+get_db_name() {
+    if [[ -n "$DB" ]]; then
+        echo "$DB"
+    else
+        # Get default db for this environment
+        local default_db=$(json_get "environments.${ENV}.default_db" 2>/dev/null || echo "")
+        if [[ -n "$default_db" ]]; then
+            echo "$default_db"
+        else
+            # Use first database as default
+            python3 << EOF
+import json
+with open("$CONFIG_FILE", 'r') as f:
+    config = json.load(f)
+dbs = config.get('environments', {}).get('$ENV', {}).get('databases', {})
+if dbs:
+    print(list(dbs.keys())[0])
+EOF
+        fi
+    fi
+}
+
+# List databases for an environment
+list_databases() {
+    echo "Databases for '$ENV':"
+    python3 << EOF
+import json
+with open("$CONFIG_FILE", 'r') as f:
+    config = json.load(f)
+env_config = config.get('environments', {}).get('$ENV', {})
+default_db = env_config.get('default_db', '')
+dbs = env_config.get('databases', {})
+for name, db in dbs.items():
+    marker = " (default)" if name == default_db else ""
+    db_type = db.get('type', 'unknown')
+    db_name = db.get('name', 'unknown')
+    print(f"    {name}: {db_type} - {db_name}{marker}")
+EOF
+}
+
+# Expand tilde in path
+expand_path() {
+    echo "${1/#\~/$HOME}"
+}
+
+# Check if SQL is a write operation
+is_write_operation() {
+    local sql="$1"
+    local sql_upper=$(echo "$sql" | tr '[:lower:]' '[:upper:]' | sed 's/^[[:space:]]*//')
+
+    case "$sql_upper" in
+        INSERT*|UPDATE*|DELETE*|DROP*|CREATE*|ALTER*|TRUNCATE*|GRANT*|REVOKE*|REPLACE*|MERGE*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Check setup status
+check_setup() {
+    local errors=0
+
+    echo "Checking surf-db-query setup..."
+    echo ""
+
+    # Check config file exists
+    if [[ -f "$CONFIG_FILE" ]]; then
+        log_info "Config file exists: $CONFIG_FILE"
+    else
+        log_error "Config file not found: $CONFIG_FILE"
+        echo "    Create it by following: ~/.claude/skills/surf-db-debug/references/setup.md"
+        errors=$((errors + 1))
+    fi
+
+    # Check config file permissions
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local perms=$(stat -f "%Lp" "$CONFIG_FILE" 2>/dev/null || stat -c "%a" "$CONFIG_FILE" 2>/dev/null)
+        if [[ "$perms" == "600" ]]; then
+            log_info "Config file permissions: 600"
+        else
+            log_warn "Config file permissions: $perms (should be 600)"
+            echo "    Run: chmod 600 $CONFIG_FILE"
+        fi
+    fi
+
+    # Check for python3 (json is built-in, no extra deps needed)
+    if command_exists python3; then
+        log_info "Python3 available (json module built-in)"
+    else
+        log_error "Python3 not found"
+        errors=$((errors + 1))
+    fi
+
+    # Check database clients
+    if command_exists psql; then
+        log_info "PostgreSQL client (psql) found"
+    else
+        log_warn "PostgreSQL client (psql) not found"
+    fi
+
+    if command_exists mysql; then
+        log_info "MySQL client found"
+    else
+        log_warn "MySQL client not found"
+    fi
+
+    # Check environments if config exists
+    if [[ -f "$CONFIG_FILE" ]]; then
+        python3 << 'EOF'
+import json
+import os
+import sys
+
+config_file = os.path.expanduser("~/.config/surf-db/config.json")
+with open(config_file, 'r') as f:
+    config = json.load(f)
+
+errors = 0
+for env_name, env_config in config.get('environments', {}).items():
+    print(f"\033[0;32m✓\033[0m Environment '{env_name}' configured")
+
+    # Check SSH key
+    key_path = env_config.get('bastion', {}).get('key_path', '')
+    if key_path:
+        key_path = os.path.expanduser(key_path)
+        if os.path.isfile(key_path):
+            print(f"\033[0;32m✓\033[0m   SSH key exists: {key_path}")
+        else:
+            print(f"\033[0;31m✗\033[0m   SSH key not found: {key_path}")
+            errors += 1
+
+    # List databases
+    dbs = env_config.get('databases', {})
+    default_db = env_config.get('default_db', '')
+    for db_name in dbs.keys():
+        marker = " (default)" if db_name == default_db else ""
+        print(f"      Database: {db_name}{marker}")
+
+sys.exit(errors)
+EOF
+        errors=$((errors + $?))
+    fi
+
+    # Check socket directory for ControlMaster
+    if [[ -d "$SOCKET_DIR" ]]; then
+        log_info "SSH socket directory exists: $SOCKET_DIR"
+    else
+        log_warn "SSH socket directory not found: $SOCKET_DIR"
+        echo "    Run: mkdir -p $SOCKET_DIR && chmod 700 $SOCKET_DIR"
+    fi
+
+    echo ""
+    if [[ $errors -eq 0 ]]; then
+        log_info "Setup complete!"
+        return 0
+    else
+        log_error "Setup incomplete. Please fix the errors above."
+        return 1
+    fi
+}
+
+# Get tunnel PID file path (includes db name for multi-db support)
+tunnel_pid_file() {
+    local db_name=$(get_db_name)
+    echo "${TUNNEL_PID_DIR}/${ENV}-${db_name}.pid"
+}
+
+# Get local tunnel port
+get_tunnel_port() {
+    local db_name=$(get_db_name)
+    local custom_port=$(json_get "environments.${ENV}.databases.${db_name}.tunnel_port" 2>/dev/null || echo "")
+    if [[ -n "$custom_port" ]]; then
+        echo "$custom_port"
+    else
+        # Generate unique port based on env and db name hash
+        local base_port=15432
+        local hash=$(echo "${ENV}-${db_name}" | md5sum | cut -c1-4)
+        local offset=$((16#$hash % 1000))
+        echo $((base_port + offset))
+    fi
+}
+
+# Start SSH tunnel
+tunnel_start() {
+    mkdir -p "$TUNNEL_PID_DIR"
+
+    local db_name=$(get_db_name)
+    local pid_file=$(tunnel_pid_file)
+    local socket_name="surf-db-${ENV}-${db_name}"
+
+    # Check if already running
+    if [[ -f "$pid_file" ]]; then
+        local pid=$(cat "$pid_file")
+        if kill -0 "$pid" 2>/dev/null; then
+            log_info "Tunnel for '$ENV:$db_name' already running (PID: $pid)"
+            return 0
+        else
+            rm -f "$pid_file"
+        fi
+    fi
+
+    # Get connection details
+    local bastion_host=$(json_get "environments.${ENV}.bastion.host")
+    local bastion_port=$(json_get "environments.${ENV}.bastion.port" 2>/dev/null || echo "22")
+    local bastion_user=$(json_get "environments.${ENV}.bastion.user")
+    local bastion_key=$(expand_path "$(json_get "environments.${ENV}.bastion.key_path")")
+
+    local db_host=$(json_get "environments.${ENV}.databases.${db_name}.host")
+    local db_port=$(json_get "environments.${ENV}.databases.${db_name}.port")
+    local local_port=$(get_tunnel_port)
+
+    log_info "Starting tunnel for '$ENV:$db_name'..."
+    echo "    Local port: $local_port -> $db_host:$db_port via $bastion_host"
+
+    # Start tunnel in background
+    ssh -f -N -M \
+        -S "${SOCKET_DIR}/${socket_name}" \
+        -i "$bastion_key" \
+        -p "$bastion_port" \
+        -L "${local_port}:${db_host}:${db_port}" \
+        -o "ControlPersist=yes" \
+        -o "ServerAliveInterval=60" \
+        -o "ServerAliveCountMax=3" \
+        -o "ExitOnForwardFailure=yes" \
+        "${bastion_user}@${bastion_host}"
+
+    # Get the PID using the control socket
+    local pid=$(ssh -S "${SOCKET_DIR}/${socket_name}" -O check "${bastion_user}@${bastion_host}" 2>&1 | grep -oE 'pid=[0-9]+' | cut -d= -f2)
+
+    if [[ -n "$pid" ]]; then
+        echo "$pid" > "$pid_file"
+        log_info "Tunnel started (PID: $pid)"
+    else
+        # Fallback: find by port
+        sleep 1
+        pid=$(lsof -ti ":$local_port" 2>/dev/null | head -1 || echo "")
+        if [[ -n "$pid" ]]; then
+            echo "$pid" > "$pid_file"
+            log_info "Tunnel started (PID: $pid)"
+        else
+            log_info "Tunnel started (control socket: $socket_name)"
+            echo "socket" > "$pid_file"
+        fi
+    fi
+}
+
+# Stop SSH tunnel
+tunnel_stop() {
+    local db_name=$(get_db_name)
+    local bastion_user=$(json_get "environments.${ENV}.bastion.user" 2>/dev/null || echo "")
+    local bastion_host=$(json_get "environments.${ENV}.bastion.host" 2>/dev/null || echo "")
+    local socket_name="surf-db-${ENV}-${db_name}"
+    local socket_path="${SOCKET_DIR}/${socket_name}"
+
+    # Try to stop via control socket
+    if [[ -S "$socket_path" ]]; then
+        ssh -S "$socket_path" -O exit "${bastion_user}@${bastion_host}" 2>/dev/null || true
+    fi
+
+    # Clean up PID file
+    local pid_file=$(tunnel_pid_file)
+    if [[ -f "$pid_file" ]]; then
+        local pid=$(cat "$pid_file")
+        if [[ "$pid" != "socket" ]] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+        fi
+        rm -f "$pid_file"
+    fi
+
+    log_info "Tunnel for '$ENV:$db_name' stopped"
+}
+
+# Check tunnel status
+tunnel_status() {
+    local db_name=$(get_db_name)
+    local socket_name="surf-db-${ENV}-${db_name}"
+    local socket_path="${SOCKET_DIR}/${socket_name}"
+    local pid_file=$(tunnel_pid_file)
+    local local_port=$(get_tunnel_port)
+
+    echo "Tunnel status for '$ENV:$db_name':"
+
+    # Check control socket
+    if [[ -S "$socket_path" ]]; then
+        log_info "Control socket exists: $socket_path"
+    else
+        log_warn "Control socket not found"
+    fi
+
+    # Check if port is listening
+    if lsof -i ":$local_port" &>/dev/null; then
+        log_info "Port $local_port is listening"
+        echo "    Tunnel is ACTIVE"
+    else
+        log_warn "Port $local_port is not listening"
+        echo "    Tunnel is INACTIVE"
+    fi
+
+    # Check PID file
+    if [[ -f "$pid_file" ]]; then
+        local pid=$(cat "$pid_file")
+        if [[ "$pid" == "socket" ]]; then
+            log_info "Managed via control socket"
+        elif kill -0 "$pid" 2>/dev/null; then
+            log_info "Process running (PID: $pid)"
+        else
+            log_warn "Process not running (stale PID file)"
+        fi
+    fi
+}
+
+# Execute SQL query
+execute_query() {
+    local sql="$1"
+    local db_name=$(get_db_name)
+
+    # Safety check for write operations
+    if is_write_operation "$sql"; then
+        if [[ "$WRITE_MODE" != "true" ]]; then
+            echo ""
+            log_error "WRITE OPERATION DETECTED"
+            echo ""
+            echo "This query appears to modify data:"
+            echo "    $sql"
+            echo ""
+            echo "Write operations require explicit confirmation."
+            echo "If you intend to execute this, add the --write flag:"
+            echo "    surf-db-query --env $ENV:$db_name --sql \"$sql\" --write"
+            echo ""
+            log_warn "Query NOT executed. Ask user for confirmation first."
+            return 1
+        else
+            log_warn "Executing WRITE operation on '$ENV:$db_name'"
+        fi
+    fi
+
+    # Get database details
+    local db_type=$(json_get "environments.${ENV}.databases.${db_name}.type")
+    local db_schema=$(json_get "environments.${ENV}.databases.${db_name}.name")
+    local db_user=$(json_get "environments.${ENV}.databases.${db_name}.user")
+    local local_port=$(get_tunnel_port)
+
+    # Get password
+    local password=""
+    local password_cmd=$(json_get "environments.${ENV}.databases.${db_name}.password_cmd" 2>/dev/null || echo "")
+    if [[ -n "$password_cmd" ]]; then
+        password=$(eval "$password_cmd")
+    else
+        password=$(json_get "environments.${ENV}.databases.${db_name}.password" 2>/dev/null || echo "")
+    fi
+
+    # Check if tunnel is running, if not start it temporarily
+    local tunnel_was_started=false
+    if ! lsof -i ":$local_port" &>/dev/null; then
+        log_info "Starting temporary tunnel..."
+        tunnel_start
+        tunnel_was_started=true
+        sleep 1
+    fi
+
+    # Execute query based on database type
+    case "$db_type" in
+        postgres|postgresql)
+            export PGPASSWORD="$password"
+            case "$FORMAT" in
+                csv)
+                    psql -h localhost -p "$local_port" -U "$db_user" -d "$db_schema" \
+                        -c "COPY ($sql) TO STDOUT WITH CSV HEADER"
+                    ;;
+                json)
+                    # Wrap query to output JSON
+                    psql -h localhost -p "$local_port" -U "$db_user" -d "$db_schema" \
+                        -t -c "SELECT json_agg(t) FROM ($sql) t"
+                    ;;
+                *)
+                    psql -h localhost -p "$local_port" -U "$db_user" -d "$db_schema" \
+                        -c "$sql"
+                    ;;
+            esac
+            unset PGPASSWORD
+            ;;
+        mysql)
+            case "$FORMAT" in
+                csv)
+                    mysql -h localhost -P "$local_port" -u "$db_user" -p"$password" "$db_schema" \
+                        -e "$sql" | sed 's/\t/,/g'
+                    ;;
+                json)
+                    mysql -h localhost -P "$local_port" -u "$db_user" -p"$password" "$db_schema" \
+                        -e "$sql" --batch --raw | python3 -c "
+import sys, json
+lines = sys.stdin.read().strip().split('\n')
+if lines:
+    headers = lines[0].split('\t')
+    rows = [dict(zip(headers, line.split('\t'))) for line in lines[1:]]
+    print(json.dumps(rows, indent=2))
+"
+                    ;;
+                *)
+                    mysql -h localhost -P "$local_port" -u "$db_user" -p"$password" "$db_schema" \
+                        -e "$sql" --table
+                    ;;
+            esac
+            ;;
+        *)
+            log_error "Unsupported database type: $db_type"
+            return 1
+            ;;
+    esac
+
+    # Note: We don't stop temporary tunnels to allow for repeated queries
+    # User can manually stop with --tunnel stop
+}
+
+# Parse arguments
+LIST_DBS=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            parse_env_arg "$2"
+            shift 2
+            ;;
+        --sql)
+            SQL="$2"
+            shift 2
+            ;;
+        --format)
+            FORMAT="$2"
+            shift 2
+            ;;
+        --write)
+            WRITE_MODE=true
+            shift
+            ;;
+        --tunnel)
+            TUNNEL_ACTION="$2"
+            shift 2
+            ;;
+        --list-dbs)
+            LIST_DBS=true
+            shift
+            ;;
+        --check-setup)
+            check_setup
+            exit $?
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Validate environment is specified for most operations
+if [[ -z "$ENV" ]] && [[ -z "$TUNNEL_ACTION" ]] && [[ -z "$SQL" ]] && [[ "$LIST_DBS" != "true" ]]; then
+    usage
+    exit 1
+fi
+
+if [[ -n "$ENV" ]]; then
+    # Validate environment exists in config
+    if ! json_get "environments.${ENV}.bastion.host" &>/dev/null; then
+        log_error "Environment '$ENV' not found in config"
+        echo "Available environments:"
+        python3 << EOF
+import json
+with open("$CONFIG_FILE", 'r') as f:
+    config = json.load(f)
+for env in config.get('environments', {}).keys():
+    print(f"    - {env}")
+EOF
+        exit 1
+    fi
+
+    # Validate database if specified
+    if [[ -n "$DB" ]]; then
+        if ! json_get "environments.${ENV}.databases.${DB}.host" &>/dev/null; then
+            log_error "Database '$DB' not found in environment '$ENV'"
+            list_databases
+            exit 1
+        fi
+    fi
+fi
+
+# List databases if requested
+if [[ "$LIST_DBS" == "true" ]]; then
+    if [[ -z "$ENV" ]]; then
+        log_error "--list-dbs requires --env"
+        exit 1
+    fi
+    list_databases
+    exit 0
+fi
+
+# Handle tunnel actions
+if [[ -n "$TUNNEL_ACTION" ]]; then
+    case "$TUNNEL_ACTION" in
+        start)
+            tunnel_start
+            ;;
+        stop)
+            tunnel_stop
+            ;;
+        status)
+            tunnel_status
+            ;;
+        *)
+            log_error "Unknown tunnel action: $TUNNEL_ACTION"
+            echo "Valid actions: start, stop, status"
+            exit 1
+            ;;
+    esac
+    exit 0
+fi
+
+# Execute SQL if provided
+if [[ -n "$SQL" ]]; then
+    execute_query "$SQL"
+fi
