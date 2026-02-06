@@ -195,7 +195,8 @@ Tested 20 questions across both traces:
 2. **Fetch all observations**: `langfuse.api.observations.get_many(trace_id=...)` with pagination (up to 500)
 3. **Process and save**: Structured files in `/tmp/trace_analysis/<id>/`
 
-SDK location: `apps/chat/app/trace/langfuse_trace.py`
+SDK: Uses the `langfuse` Python package directly (auto-installed via PEP 723 inline metadata).
+Config: `~/.config/langfuse/config.json` (see `references/setup.md`).
 
 ## How Key Values Are Indexed
 

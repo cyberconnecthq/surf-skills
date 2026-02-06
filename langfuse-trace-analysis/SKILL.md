@@ -22,18 +22,20 @@ Supports two modes:
 
 ### Step 1: Fetch Trace Data
 
-When user provides a trace ID:
+When user provides a trace ID, run `fetch_trace.py` from this skill's directory:
 
 ```bash
 # Standard fetch (uses cache if exists)
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py <TRACE_ID>
+uv run SCRIPT_PATH <TRACE_ID>
 
 # Fast mode (2x faster, 24x smaller - skips individual observation files)
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py <TRACE_ID> --fast
+uv run SCRIPT_PATH <TRACE_ID> --fast
 
 # Force re-fetch (ignore cache)
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py <TRACE_ID> --force
+uv run SCRIPT_PATH <TRACE_ID> --force
 ```
+
+> **SCRIPT_PATH**: Resolve the absolute path to `fetch_trace.py` in this skill's directory before running.
 
 **Performance:**
 | Mode | Time | Disk |
@@ -104,10 +106,10 @@ When user provides a session ID (or asks about a conversation/session):
 
 ```bash
 # Fetch all traces in a session
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py --session <SESSION_ID>
+uv run SCRIPT_PATH --session <SESSION_ID>
 
 # Fast mode (recommended for sessions with many traces)
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py --session <SESSION_ID> --fast
+uv run SCRIPT_PATH --session <SESSION_ID> --fast
 ```
 
 Files are saved to `/tmp/trace_analysis/sessions/<session_id_prefix>/`
@@ -157,11 +159,11 @@ For questions like "where does the BTC price in trace 3 come from?":
 
 ```bash
 # List cached traces with sizes
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py --list
+uv run SCRIPT_PATH --list
 
 # Clean traces older than 7 days
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py --clean
+uv run SCRIPT_PATH --clean
 
 # Delete all cached traces
-cd /Users/zimop/Desktop/odin-flow/apps/chat && uv run python /Users/zimop/Desktop/odin-flow/.claude/skills/trace-analysis/fetch_trace.py --clean-all
+uv run SCRIPT_PATH --clean-all
 ```

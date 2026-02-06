@@ -66,18 +66,15 @@ git push -u origin <branch-name>
 
 ### 5. Create Pull Request
 
-Use GitHub MCP tool:
-```
-mcp__plugin_github_github__create_pull_request
-```
-
-PR body format:
-```markdown
+```bash
+gh pr create --title "<commit-message>" --body "$(cat <<'EOF'
 ## Summary
 - <bullet points of changes>
 
 ## Test plan
 - [ ] <test items>
+EOF
+)" --repo <owner>/<repo>
 ```
 
 ### 6. Wait for CI
@@ -92,11 +89,8 @@ gh pr checks <pr-number> --repo <owner>/<repo>
 
 ### 7. Squash & Merge
 
-Use GitHub MCP tool:
-```
-mcp__plugin_github_github__merge_pull_request
-  merge_method: squash
-  commit_title: "<original-title> (#<pr-number>)"
+```bash
+gh pr merge <pr-number> --squash --repo <owner>/<repo>
 ```
 
 ### 8. Cleanup

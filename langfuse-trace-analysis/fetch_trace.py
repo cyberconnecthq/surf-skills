@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["langfuse"]
+# ///
 """
 Fetch Langfuse trace data and save to local files for analysis.
 
 Usage:
-    python fetch_trace.py <trace_id> [--force] [--fast]     # Fetch a single trace
-    python fetch_trace.py --session <session_id> [--fast]   # Fetch all traces in a session
-    python fetch_trace.py --list                            # List cached traces
-    python fetch_trace.py --clean [days]                    # Delete traces older than N days (default: 7)
-    python fetch_trace.py --clean-all                       # Delete all cached traces
+    uv run fetch_trace.py <trace_id> [--force] [--fast]     # Fetch a single trace
+    uv run fetch_trace.py --session <session_id> [--fast]   # Fetch all traces in a session
+    uv run fetch_trace.py --list                            # List cached traces
+    uv run fetch_trace.py --clean [days]                    # Delete traces older than N days (default: 7)
+    uv run fetch_trace.py --clean-all                       # Delete all cached traces
+
+Config: ~/.config/langfuse/config.json (or LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST env vars).
 
 Output structure (single trace):
     /tmp/trace_analysis/<trace_id>/
@@ -44,14 +50,56 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Add the app to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "apps" / "chat"))
+from langfuse import Langfuse
 
-from app.trace.langfuse_trace import (
-    get_trace_details,
-    get_observations_from_trace,
-    fetch_traces_by_session,
-)
+_langfuse = None
+_CONFIG_PATH = Path.home() / ".config" / "langfuse" / "config.json"
+
+
+def _load_config():
+    """Load Langfuse credentials from ~/.config/langfuse/config.json into env vars."""
+    if not _CONFIG_PATH.exists():
+        return
+    try:
+        config = json.loads(_CONFIG_PATH.read_text())
+        for key in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"):
+            if key not in os.environ and key.lower() in config:
+                os.environ[key] = config[key.lower()]
+    except (json.JSONDecodeError, KeyError):
+        pass
+
+
+def _get_client():
+    global _langfuse
+    if _langfuse is None:
+        _load_config()
+        _langfuse = Langfuse()
+    return _langfuse
+
+
+def get_trace_details(trace_id: str):
+    """Fetch a single trace by ID."""
+    return _get_client().api.trace.get(trace_id)
+
+
+def get_observations_from_trace(trace_id: str, max_observations: int = 500):
+    """Fetch all observations for a trace, paginating if needed."""
+    client = _get_client()
+    all_obs = []
+    page = 1
+    while len(all_obs) < max_observations:
+        batch_limit = min(100, max_observations - len(all_obs))
+        result = client.api.observations.get_many(trace_id=trace_id, limit=batch_limit, page=page)
+        all_obs.extend(result.data)
+        if len(result.data) < batch_limit:
+            break
+        page += 1
+    return all_obs
+
+
+def fetch_traces_by_session(session_id: str, limit: int = 100):
+    """Fetch all traces in a session."""
+    return _get_client().api.trace.list(session_id=session_id, limit=limit).data
 
 
 def sanitize_filename(name: str, max_length: int = 50) -> str:
@@ -183,8 +231,8 @@ def build_llm_summary(observations: list) -> str:
 
         # Token usage
         if obs.usage:
-            input_tokens = obs.usage.get("input", 0) or obs.usage.get("prompt_tokens", 0) or 0
-            output_tokens = obs.usage.get("output", 0) or obs.usage.get("completion_tokens", 0) or 0
+            input_tokens = getattr(obs.usage, "input", 0) or 0
+            output_tokens = getattr(obs.usage, "output", 0) or 0
             total_input_tokens += input_tokens
             total_output_tokens += output_tokens
             lines.append(f"    Tokens: {input_tokens} in / {output_tokens} out")
@@ -297,8 +345,8 @@ def build_cost_summary(observations: list) -> str:
         model_stats[model]["count"] += 1
 
         if obs.usage:
-            input_tokens = obs.usage.get("input", 0) or obs.usage.get("prompt_tokens", 0) or 0
-            output_tokens = obs.usage.get("output", 0) or obs.usage.get("completion_tokens", 0) or 0
+            input_tokens = getattr(obs.usage, "input", 0) or 0
+            output_tokens = getattr(obs.usage, "output", 0) or 0
             model_stats[model]["input_tokens"] += input_tokens
             model_stats[model]["output_tokens"] += output_tokens
 
