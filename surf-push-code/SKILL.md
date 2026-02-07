@@ -67,14 +67,14 @@ git push -u origin <branch-name>
 ### 5. Create Pull Request
 
 ```bash
-gh pr create --title "<commit-message>" --body "$(cat <<'EOF'
+gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Summary
 - <bullet points of changes>
 
 ## Test plan
 - [ ] <test items>
 EOF
-)" --repo <owner>/<repo>
+)"
 ```
 
 ### 6. Wait for CI
@@ -90,7 +90,7 @@ gh pr checks <pr-number> --repo <owner>/<repo>
 ### 7. Squash & Merge
 
 ```bash
-gh pr merge <pr-number> --squash --repo <owner>/<repo>
+gh pr merge <pr-number> --squash --delete-branch
 ```
 
 ### 8. Cleanup
