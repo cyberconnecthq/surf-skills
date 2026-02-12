@@ -15,7 +15,12 @@ surf-skills/
 │   ├── learnings.md              # Team-shared learnings (updated by Claude)
 │   └── references/               # Detailed reference documentation
 ├── surf-dev-push-code/           # Git workflow automation skill
-│   └── SKILL.md
+│   ├── SKILL.md
+│   └── references/
+├── surf-data-clickhouse/         # ClickHouse query skill
+│   ├── SKILL.md
+│   ├── references/
+│   └── scripts/
 ├── surf-data-db-debug/           # Database debugging skill
 │   ├── SKILL.md
 │   ├── references/
@@ -90,5 +95,5 @@ npx skills add cyberconnecthq/surf-skills
 Or manually via symlinks:
 ```bash
 cd ~/.claude/skills
-ln -s surf-skills/surf-dev-golang surf-dev-golang
+ln -s /path/to/surf-skills/surf-dev-golang surf-dev-golang
 ```

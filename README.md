@@ -8,6 +8,7 @@ Claude Code skills for Surf platform development.
 |-------|-------------|-----|
 | `surf-dev-golang` | Go development guide (muninn, argus) | Backend engineers |
 | `surf-dev-push-code` | Automate Git workflow (branch, commit, PR, merge) | All engineers |
+| `surf-data-clickhouse` | Query ClickHouse Cloud for blockchain data and product analytics | Data/Analytics engineers |
 | `surf-data-db-debug` | Query staging/production databases via SSH bastion | All engineers |
 | `surf-data-langfuse-trace` | Analyze Langfuse traces for debugging agent execution | AI/Agent engineers |
 
