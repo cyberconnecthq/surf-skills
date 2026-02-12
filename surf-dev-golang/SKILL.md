@@ -7,7 +7,7 @@ description: Go development guide for Surf platform (muninn, argus repos). Use w
 
 # Surf Go Development
 
-Guide for Go development on Surf platform backend services (muninn, argus).
+Follow these guidelines when developing Go code for Surf platform backend services (muninn, argus).
 
 ## Quick Reference
 
@@ -73,13 +73,13 @@ When encountering specific tasks, read the appropriate reference file:
 
 ## Self-Learning Protocol
 
-When receiving user feedback or corrections about coding style, architecture decisions, or best practices:
+On user feedback or corrections about coding style, architecture decisions, or best practices:
 
-1. **Apply the feedback** to the current task
-2. **Determine where to persist the learning**:
-   - **General Go patterns** → Update `learnings.md` in this skill repo
-   - **Project-specific info** → Update that project's `CLAUDE.md`
-3. **Commit the update** to the appropriate repository
+1. Apply the feedback to the current task
+2. Determine where to persist the learning:
+   - General Go patterns → update `learnings.md` in this skill repo
+   - Project-specific info → update that project's `CLAUDE.md`
+3. Commit the update to the appropriate repository
 4. Format learnings as: clear rule + rationale + code example if applicable
 
 ### Learning Categories

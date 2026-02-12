@@ -1,16 +1,11 @@
 ---
 name: surf-data-langfuse-trace
 description: Start the Langfuse trace analysis interactive CLI. Use when analyzing traces, debugging agent execution, investigating performance issues, or examining Langfuse observations.
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
 ---
 
 # Trace Analysis Skill
 
-Analyze Langfuse traces by fetching data to local files and using file search tools.
+Fetch Langfuse trace data to local files and analyze using file search tools.
 
 Supports two modes:
 - **Single trace**: Analyze one trace by ID

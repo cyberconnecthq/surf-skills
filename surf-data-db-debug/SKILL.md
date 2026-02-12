@@ -5,7 +5,7 @@ description: Use when debugging database issues, exploring data, or running SQL 
 
 # Database Debugging Skill
 
-This skill enables you to directly query staging and production databases for debugging purposes.
+Query staging and production databases for debugging through SSH bastion.
 
 ## First-Time Setup Check
 
