@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     --sql) SQL="$2"; shift 2 ;;
     --db) DB="$2"; shift 2 ;;
     --format)
-      case "${2^^}" in
+      case "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')" in
         TSV) FORMAT="TabSeparatedWithNames" ;;
         JSON) FORMAT="JSONEachRow" ;;
         CSV) FORMAT="CSVWithNames" ;;

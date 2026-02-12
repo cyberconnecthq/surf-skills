@@ -90,6 +90,24 @@ except (KeyError, TypeError):
 EOF
 }
 
+# Try loading config from AWS Secrets Manager (falls back silently)
+load_config_from_aws() {
+    command_exists aws || return 0
+    local secret
+    secret=$(timeout 5 aws secretsmanager get-secret-value \
+        --secret-id "postgres/prd-odin/bot_ro" \
+        --query "SecretString" --output text 2>/dev/null) || return 0
+    local tmp_config
+    tmp_config=$(mktemp)
+    echo "$secret" > "$tmp_config"
+    CONFIG_FILE="$tmp_config"
+}
+
+# Check if environment has bastion config
+has_bastion() {
+    json_get "environments.${ENV}.bastion.host" &>/dev/null
+}
+
 # Parse ENV argument into ENV and DB
 # Input: "stg" or "stg:main"
 parse_env_arg() {
@@ -171,6 +189,9 @@ check_setup() {
     echo "Checking surf-db-query setup..."
     echo ""
 
+    # Try AWS Secrets Manager first
+    load_config_from_aws
+
     # Check config file exists
     if [[ -f "$CONFIG_FILE" ]]; then
         log_info "Config file exists: $CONFIG_FILE"
@@ -178,6 +199,13 @@ check_setup() {
         log_error "Config file not found: $CONFIG_FILE"
         echo "    Create it by following: ~/.claude/skills/surf-data-db-debug/references/setup.md"
         errors=$((errors + 1))
+    fi
+
+    # Check AWS CLI
+    if command_exists aws; then
+        log_info "AWS CLI available (Secrets Manager lookup enabled)"
+    else
+        log_warn "AWS CLI not found (Secrets Manager lookup disabled, using local config)"
     fi
 
     # Check config file permissions
@@ -214,28 +242,31 @@ check_setup() {
 
     # Check environments if config exists
     if [[ -f "$CONFIG_FILE" ]]; then
-        python3 << 'EOF'
+        python3 << EOF
 import json
 import os
 import sys
 
-config_file = os.path.expanduser("~/.config/surf-db/config.json")
+config_file = "$CONFIG_FILE"
 with open(config_file, 'r') as f:
     config = json.load(f)
 
 errors = 0
 for env_name, env_config in config.get('environments', {}).items():
-    print(f"\033[0;32m✓\033[0m Environment '{env_name}' configured")
+    has_bastion = bool(env_config.get('bastion', {}).get('host'))
+    mode = "bastion" if has_bastion else "direct"
+    print(f"\033[0;32m✓\033[0m Environment '{env_name}' configured ({mode})")
 
-    # Check SSH key
-    key_path = env_config.get('bastion', {}).get('key_path', '')
-    if key_path:
-        key_path = os.path.expanduser(key_path)
-        if os.path.isfile(key_path):
-            print(f"\033[0;32m✓\033[0m   SSH key exists: {key_path}")
-        else:
-            print(f"\033[0;31m✗\033[0m   SSH key not found: {key_path}")
-            errors += 1
+    # Check SSH key only if bastion is configured
+    if has_bastion:
+        key_path = env_config.get('bastion', {}).get('key_path', '')
+        if key_path:
+            key_path = os.path.expanduser(key_path)
+            if os.path.isfile(key_path):
+                print(f"\033[0;32m✓\033[0m   SSH key exists: {key_path}")
+            else:
+                print(f"\033[0;31m✗\033[0m   SSH key not found: {key_path}")
+                errors += 1
 
     # List databases
     dbs = env_config.get('databases', {})
@@ -446,7 +477,6 @@ execute_query() {
     local db_type=$(json_get "environments.${ENV}.databases.${db_name}.type")
     local db_schema=$(json_get "environments.${ENV}.databases.${db_name}.name")
     local db_user=$(json_get "environments.${ENV}.databases.${db_name}.user")
-    local local_port=$(get_tunnel_port)
 
     # Get password
     local password=""
@@ -457,13 +487,20 @@ execute_query() {
         password=$(json_get "environments.${ENV}.databases.${db_name}.password" 2>/dev/null || echo "")
     fi
 
-    # Check if tunnel is running, if not start it temporarily
-    local tunnel_was_started=false
-    if ! lsof -i ":$local_port" &>/dev/null; then
-        log_info "Starting temporary tunnel..."
-        tunnel_start
-        tunnel_was_started=true
-        sleep 1
+    # Determine connection host/port
+    local connect_host connect_port
+    if has_bastion; then
+        local local_port=$(get_tunnel_port)
+        if ! lsof -i ":$local_port" &>/dev/null; then
+            log_info "Starting temporary tunnel..."
+            tunnel_start
+            sleep 1
+        fi
+        connect_host="localhost"
+        connect_port="$local_port"
+    else
+        connect_host=$(json_get "environments.${ENV}.databases.${db_name}.host")
+        connect_port=$(json_get "environments.${ENV}.databases.${db_name}.port")
     fi
 
     # Execute query based on database type
@@ -472,12 +509,12 @@ execute_query() {
             export PGPASSWORD="$password"
             case "$FORMAT" in
                 csv)
-                    psql -h localhost -p "$local_port" -U "$db_user" -d "$db_schema" \
+                    psql -h "$connect_host" -p "$connect_port" -U "$db_user" -d "$db_schema" \
                         -c "COPY ($sql) TO STDOUT WITH CSV HEADER"
                     ;;
                 json)
                     # Wrap query to output JSON
-                    psql -h localhost -p "$local_port" -U "$db_user" -d "$db_schema" \
+                    psql -h "$connect_host" -p "$connect_port" -U "$db_user" -d "$db_schema" \
                         -t -c "SELECT json_agg(t) FROM ($sql) t"
                     ;;
                 parquet)
@@ -493,7 +530,7 @@ execute_query() {
                         --sql "$sql" "${output_args[@]}"
                     ;;
                 *)
-                    psql -h localhost -p "$local_port" -U "$db_user" -d "$db_schema" \
+                    psql -h "$connect_host" -p "$connect_port" -U "$db_user" -d "$db_schema" \
                         -c "$sql"
                     ;;
             esac
@@ -502,11 +539,11 @@ execute_query() {
         mysql)
             case "$FORMAT" in
                 csv)
-                    mysql -h localhost -P "$local_port" -u "$db_user" -p"$password" "$db_schema" \
+                    mysql -h "$connect_host" -P "$connect_port" -u "$db_user" -p"$password" "$db_schema" \
                         -e "$sql" | sed 's/\t/,/g'
                     ;;
                 json)
-                    mysql -h localhost -P "$local_port" -u "$db_user" -p"$password" "$db_schema" \
+                    mysql -h "$connect_host" -P "$connect_port" -u "$db_user" -p"$password" "$db_schema" \
                         -e "$sql" --batch --raw | python3 -c "
 import sys, json
 lines = sys.stdin.read().strip().split('\n')
@@ -529,7 +566,7 @@ if lines:
                         --sql "$sql" "${output_args[@]}"
                     ;;
                 *)
-                    mysql -h localhost -P "$local_port" -u "$db_user" -p"$password" "$db_schema" \
+                    mysql -h "$connect_host" -P "$connect_port" -u "$db_user" -p"$password" "$db_schema" \
                         -e "$sql" --table
                     ;;
             esac
@@ -592,6 +629,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Try AWS Secrets Manager before falling back to local config
+load_config_from_aws
+
 # Validate environment is specified for most operations
 if [[ -z "$ENV" ]] && [[ -z "$TUNNEL_ACTION" ]] && [[ -z "$SQL" ]] && [[ "$LIST_DBS" != "true" ]]; then
     usage
@@ -600,7 +640,7 @@ fi
 
 if [[ -n "$ENV" ]]; then
     # Validate environment exists in config
-    if ! json_get "environments.${ENV}.bastion.host" &>/dev/null; then
+    if ! json_get "environments.${ENV}.databases" &>/dev/null; then
         log_error "Environment '$ENV' not found in config"
         echo "Available environments:"
         python3 << EOF
@@ -635,6 +675,10 @@ fi
 
 # Handle tunnel actions
 if [[ -n "$TUNNEL_ACTION" ]]; then
+    if ! has_bastion; then
+        log_info "No bastion configured for '$ENV' — using direct connection. Tunnels are not needed."
+        exit 0
+    fi
     case "$TUNNEL_ACTION" in
         start)
             tunnel_start

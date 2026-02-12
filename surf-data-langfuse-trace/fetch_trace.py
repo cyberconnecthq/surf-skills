@@ -13,7 +13,7 @@ Usage:
     uv run fetch_trace.py --clean [days]                    # Delete traces older than N days (default: 7)
     uv run fetch_trace.py --clean-all                       # Delete all cached traces
 
-Config: ~/.config/langfuse/config.json (or LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST env vars).
+Config priority: AWS Secrets Manager > env vars > ~/.config/langfuse/config.json.
 
 Output structure (single trace):
     /tmp/trace_analysis/<trace_id>/
@@ -75,7 +75,7 @@ def _load_from_aws():
             "base_url": "LANGFUSE_HOST",
         }
         for secret_key, env_var in key_map.items():
-            if env_var not in os.environ and secret_key in secret:
+            if secret_key in secret:
                 os.environ[env_var] = secret[secret_key]
     except Exception:
         pass

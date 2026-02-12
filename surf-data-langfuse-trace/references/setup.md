@@ -9,8 +9,8 @@
 
 Credentials are resolved in this order (first found wins per key):
 
-1. **Environment variables** — `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
-2. **AWS Secrets Manager** — secret `langfuse/surf-ai/bot` (requires `aws` CLI configured via `aws configure` or IAM role)
+1. **AWS Secrets Manager** — secret `langfuse/surf-ai/bot` (requires `aws` CLI configured via `aws configure` or IAM role). Always takes priority when available.
+2. **Environment variables** — `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
 3. **Config file** — `~/.config/langfuse/config.json`
 
 AWS Secrets Manager is tried automatically and silently skipped if the `aws` CLI is not installed or credentials are not configured.
