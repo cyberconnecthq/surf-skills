@@ -14,6 +14,10 @@ surf-skills/
 │   ├── SKILL.md                  # Skill definition with YAML frontmatter
 │   ├── learnings.md              # Team-shared learnings (updated by Claude)
 │   └── references/               # Detailed reference documentation
+├── surf-dev-repo-map/            # Surf platform repo map (~41 active repos)
+│   ├── SKILL.md
+│   ├── references/
+│   └── scripts/
 ├── surf-dev-push-code/           # Git workflow automation skill
 │   ├── SKILL.md
 │   └── references/

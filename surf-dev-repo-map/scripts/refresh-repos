@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Fetches all active cyberconnecthq repos and compares against the known Surf repo list.
+# Outputs a markdown report highlighting new/missing repos.
+#
+# Usage:
+#   surf-dev-repo-map/scripts/refresh-repos
+#   surf-dev-repo-map/scripts/refresh-repos --days 60   # repos active in last 60 days (default: 30)
+#
+# Requires: gh (GitHub CLI), jq
+
+set -euo pipefail
+
+DAYS=30
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --days) DAYS="$2"; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+# Resolve script directory for locating SKILL.md
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SKILL_MD="$SKILL_DIR/SKILL.md"
+
+# Known Surf repos (extracted from SKILL.md tables)
+KNOWN_SURF_REPOS=$(printf '%s\n' \
+  surf-website surf-ios surf-android surf-doc surf-v2 remove-vibe \
+  muninn hermod huginn argus bifrost pluto surf-api-gateway surf-chainreader proto \
+  odin odin-flow urania recon llm-judge-eval-script-version llm-as-judge-check \
+  swell helios diver heimdall data-check-skill data-check-script databricks-cyber dune-internal-viewer token-monitoring \
+  gitops gitops-stg dagster-staging OTS surf-skills \
+  enterprise-dashboard stablecoin-fiat \
+)
+
+# Known non-Surf repos (Cyber/Link3/other)
+EXCLUDED_REPOS=$(printf '%s\n' \
+  thor hades heracles balder phantasos hermes demeter rhea ladon \
+  cyber-frontend cyber-air cybercontracts cybergraph cyberid \
+  link3 link3-web-v2 link3-notification-tg-bot link3-org-verify-bot nox-backend \
+  2026-outing-bot \
+)
+
+CUTOFF_DATE=$(python3 -c "
+from datetime import datetime, timedelta, timezone
+print((datetime.now(timezone.utc) - timedelta(days=$DAYS)).strftime('%Y-%m-%dT%H:%M:%SZ'))
+")
+
+echo "# Surf Repo Map — Refresh Report"
+echo ""
+echo "Generated: $(date -u '+%Y-%m-%d %H:%M UTC')"
+echo "Window: repos pushed within last $DAYS days (since $CUTOFF_DATE)"
+echo ""
+
+# Fetch all non-archived repos pushed within the window
+# gh api pagination handles >100 repos
+ALL_REPOS=$(gh api graphql --paginate -f query='
+query($endCursor: String) {
+  organization(login: "cyberconnecthq") {
+    repositories(first: 100, after: $endCursor, isArchived: false, orderBy: {field: PUSHED_AT, direction: DESC}) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        name
+        primaryLanguage { name }
+        description
+        pushedAt
+      }
+    }
+  }
+}' --jq '.data.organization.repositories.nodes[]' 2>/dev/null)
+
+ACTIVE_REPOS=$(echo "$ALL_REPOS" | jq -r --arg cutoff "$CUTOFF_DATE" '
+  select(.pushedAt >= $cutoff) | [.name, (.primaryLanguage.name // "—"), (.description // "—"), .pushedAt] | @tsv
+' | sort)
+
+echo "## Active Repos ($DAYS days)"
+echo ""
+echo "| Repo | Lang | Description | Last Push | Status |"
+echo "|------|------|-------------|-----------|--------|"
+
+echo "$ACTIVE_REPOS" | while IFS=$'\t' read -r name lang desc pushed; do
+  if echo "$KNOWN_SURF_REPOS" | grep -qx "$name"; then
+    status="Known Surf"
+  elif echo "$EXCLUDED_REPOS" | grep -qx "$name"; then
+    status="Excluded (Cyber/Link3)"
+  else
+    status="**NEW — needs triage**"
+  fi
+  echo "| \`$name\` | $lang | $desc | ${pushed%T*} | $status |"
+done
+
+echo ""
+echo "## Missing from Active"
+echo ""
+echo "Repos in SKILL.md but not active in the last $DAYS days:"
+echo ""
+
+for repo in $KNOWN_SURF_REPOS; do
+  if ! echo "$ACTIVE_REPOS" | grep -q "^$repo	"; then
+    echo "- \`$repo\`"
+  fi
+done
+
+echo ""
+echo "## Action Items"
+echo ""
+echo "1. For each **NEW — needs triage** repo: determine if it's Surf or Cyber/Link3"
+echo "2. Add confirmed Surf repos to SKILL.md"
+echo "3. Remove inactive repos if they've been archived"
+echo "4. Update references/service-details.md for new backend services"

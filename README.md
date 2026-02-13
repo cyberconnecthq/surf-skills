@@ -7,6 +7,7 @@ Claude Code skills for Surf platform development.
 | Skill | Description | For |
 |-------|-------------|-----|
 | `surf-dev-golang` | Go development guide (muninn, argus) | Backend engineers |
+| `surf-dev-repo-map` | Surf platform repo map — Norse names → purposes, dependencies, bug guide | All engineers |
 | `surf-dev-push-code` | Automate Git workflow (branch, commit, PR, merge) | All engineers |
 | `surf-data-clickhouse` | Query ClickHouse Cloud for blockchain data and product analytics | Data/Analytics engineers |
 | `surf-data-db` | Query staging/production databases via SSH bastion | All engineers |
