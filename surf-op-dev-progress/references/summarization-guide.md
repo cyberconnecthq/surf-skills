@@ -2,21 +2,60 @@
 
 ## Output Format
 
-Present TWO tables:
+Default to **Slack format** (mrkdwn). Use markdown tables only if the user explicitly asks for markdown.
 
-**By Repo:**
+### Slack format (default)
+
+Use Slack mrkdwn — no tables, since Slack doesn't render them. Structure:
+
+```
+*Team Progress — YYYY-MM-DD*
+_Window description · N commits_
+
+*By Repo*
+
+*repo-name* — Contributor1, Contributor2
+Summary of what happened
+
+*repo-name* — Contributor1
+Summary of what happened
+
+———
+
+*By Person*
+
+*Person Name* — repo1, repo2
+Summary of what they did
+```
+
+Example:
+
+```
+*By Repo*
+
+*muninn* — Darclindy, HappySean
+Built vibe coding mode with live preview (proxy + iframe, replaced Sandpack); added tabbed Preview/Debug panel; coupon mapping CRUD
+
+*swell* — Ryan Li, Zhimao Liu, PengDeng
+Kalshi prediction market integration; converted daily models to incremental; dbt test framework; CH parquet imports
+
+———
+
+*By Person*
+
+*Darclindy* — muninn, urania, odin-flow
+Built vibe coding mode end-to-end: live preview proxy, iframe approach, tabbed debug panel, design skills; unified Bithumb report templates
+
+*Ryan Li* — diver, swell
+Session/trace detail pages with Langfuse; UUID lookup page; L3 incident investigation; ClickHouse query fixes; dbt test framework; incremental model refactor
+```
+
+### Markdown table format (on request)
 
 | Repo | Contributors | What happened |
 |------|-------------|---------------|
-| muninn | Darclindy, HappySean | Built vibe coding mode with live preview (proxy + iframe, replaced Sandpack); added tabbed Preview/Debug panel; coupon mapping CRUD |
-| swell | Ryan Li, Zhimao Liu, PengDeng | Kalshi prediction market integration; converted daily models to incremental; dbt test framework; CH parquet imports |
-
-**By Person:**
-
-| Person | Repos | What they did |
-|--------|-------|---------------|
-| Darclindy | muninn, urania, odin-flow | Built vibe coding mode end-to-end: live preview proxy, iframe approach, tabbed debug panel, design skills; unified Bithumb report templates |
-| Ryan Li | diver, swell | Session/trace detail pages with Langfuse; UUID lookup page; L3 incident investigation; ClickHouse query fixes; dbt test framework; incremental model refactor |
+| muninn | Darclindy, HappySean | Built vibe coding mode with live preview |
+| swell | Ryan Li, PengDeng | Kalshi integration; dbt test framework |
 
 ## Summarization Rules
 
