@@ -138,6 +138,8 @@ fi
 get_creds "$INSTANCE"
 
 # Build query with format
+# Strip inline FORMAT clause if present (--format flag is the single source of truth)
+SQL=$(printf '%s' "$SQL" | sed -E 's/[[:space:]]+[Ff][Oo][Rr][Mm][Aa][Tt][[:space:]]+[A-Za-z]+[[:space:]]*$//')
 QUERY="${SQL} FORMAT ${FORMAT}"
 
 # Build URL params
