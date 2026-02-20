@@ -94,8 +94,33 @@ Detailed LLM call observations. Largest table.
 | event | LowCardinality(String) | Event name |
 | distinct_id | String | User identifier |
 | properties | String | JSON event properties |
-| person_id | Nullable(String) | |
+| person_id | Nullable(String) | PostHog internal ID — NOT the same as `users.id` |
 | person_properties | Nullable(String) | JSON person properties |
+
+> **CRITICAL — PostHog Identity Resolution:**
+> - `person_id` is PostHog's internal identifier. It does **NOT** equal `users.id`. Never join `person_id` directly to the `users` table.
+> - After PostHog identifies a user, batch exports merge all their `distinct_id` values under one `person_id`. This means naive `COUNT DISTINCT distinct_id` on visitors/registered/paid funnel steps can collapse to the **same number**.
+> - To get the app user ID for joins to `users`/`invoices`/etc., use: `argMax(distinct_id, timestamp) AS identified_id` grouped by `coalesce(person_id, distinct_id)`. The latest `distinct_id` is typically the post-identification app user ID.
+> - For funnel queries, use a **flag-based per-person approach**: group by person, set `maxIf` flags for each funnel step, then aggregate. See the working `ph_acquisition_funnel` query in `diver/app/workflow/assets/analytics/queries.py` as the reference pattern.
+>
+> ```sql
+> -- Correct funnel pattern (flag-based, avoids distinct_id merge issue)
+> WITH person_flags AS (
+>     SELECT
+>         coalesce(person_id, distinct_id) AS pid,
+>         max(CASE WHEN event = '$pageview' THEN 1 ELSE 0 END) AS did_visit,
+>         max(CASE WHEN event = 'login_started' THEN 1 ELSE 0 END) AS did_login,
+>         max(CASE WHEN event = 'registration_complete' THEN 1 ELSE 0 END) AS did_register
+>     FROM default.posthog_events
+>     WHERE timestamp >= now() - INTERVAL 90 DAY
+>     GROUP BY pid
+> )
+> SELECT
+>     countIf(did_visit = 1) AS visitors,
+>     countIf(did_login = 1) AS started_login,
+>     countIf(did_register = 1) AS registered
+> FROM person_flags
+> ```
 
 ### `projects` — Crypto projects (23K rows)
 | Column | Type | Notes |
@@ -112,12 +137,13 @@ Detailed LLM call observations. Largest table.
 
 > **IMPORTANT — Paying vs free**: To identify real paying users, filter out free trials:
 > - `payment_source` values: `STRIPE`, `GOOGLEPAY`, `APPLEPAY` (real payment) vs `FREE` (not paying)
-> - `subscription_type` values: `PRO`, `PLUS` (real plans) vs `PRO_TRIAL` (free trial)
+> - `subscription_type` values: `PRO`, `PLUS`, `MAX` (real plans) vs `PRO_TRIAL`, `MAX_TRIAL` (free trials)
 > - `status` values are **UPPERCASE**: `ACTIVE`, `INACTIVE`
 > ```sql
 > -- Real paying users (ever paid)
 > SELECT user_id FROM default.user_subscriptions
-> WHERE payment_source != 'FREE' AND subscription_type != 'PRO_TRIAL'
+> WHERE payment_source != 'FREE'
+>   AND subscription_type NOT IN ('PRO_TRIAL', 'MAX_TRIAL')
 > -- Currently paying users
 > SELECT user_id FROM default.user_subscriptions
 > WHERE status = 'ACTIVE' AND payment_source != 'FREE'
@@ -127,7 +153,7 @@ Detailed LLM call observations. Largest table.
 |--------|------|-------|
 | id | UUID | |
 | user_id | UUID | FK to users |
-| subscription_type | Nullable(String) | `PRO`, `PLUS`, `PRO_TRIAL` |
+| subscription_type | Nullable(String) | `PRO`, `PLUS`, `MAX` (paid), `PRO_TRIAL`, `MAX_TRIAL` (free trials) |
 | status | LowCardinality(Nullable(String)) | `ACTIVE` / `INACTIVE` (uppercase) |
 | period | Nullable(String) | monthly/yearly |
 | payment_source | Nullable(String) | `STRIPE` / `GOOGLEPAY` / `APPLEPAY` / `FREE` |

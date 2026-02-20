@@ -129,6 +129,25 @@ WHERE session_id = 'uuid-here'
 ORDER BY created_at
 ```
 
+## ClickHouse Query Gotchas
+
+These are hard-won lessons from production analytics work:
+
+### CTE column names collide with output aliases
+ClickHouse throws `ILLEGAL_AGGREGATION` when a CTE column name matches an outer `countIf`/`sumIf` alias. For example, a CTE column named `registered` will collide with `countIf(...) AS registered` in the outer SELECT. **Fix**: prefix CTE columns with `did_` (e.g., `did_register`, `did_visit`, `did_pay`).
+
+### CTE + LEFT JOIN produces false 100% matches
+ClickHouse CTEs used in `LEFT JOIN` can materialize incorrectly, producing false matches (e.g., 100/100 instead of 5/100). This is a known ClickHouse materialization issue. **Fix**: replace `LEFT JOIN cte ON ...` with `IN (SELECT ... FROM cte)` subquery.
+
+### PostHog person_id is NOT the app user ID
+`posthog_events.person_id` is PostHog's internal identifier. It does **not** equal `users.id`. To get the app user ID for joins to `users`/`invoices`/etc., use `argMax(distinct_id, timestamp)` grouped by `coalesce(person_id, distinct_id)`. See `references/analytics-tables.md` for the full pattern.
+
+### PostHog distinct_id merging collapses funnels
+After identification, PostHog batch exports merge all `distinct_id` values, so `COUNT DISTINCT` on visitors/registered/paid returns the same number. Use flag-based per-person aggregation instead. See `references/analytics-tables.md` for the correct funnel pattern.
+
+### Always verify SQL against live ClickHouse
+Mocked unit tests don't catch ClickHouse-specific syntax errors (FINAL alias ordering, CTE materialization bugs, aggregate alias collisions). Always test queries against the real database.
+
 ## Error Handling
 
 If queries fail:
