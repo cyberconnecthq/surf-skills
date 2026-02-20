@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Verify a token price claim against ClickHouse external.coingecko_hour
+# Used during bad case audit to fact-check AI-generated prices
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+CH_QUERY=""
+
+# Find ch-query script
+for candidate in \
+    "$(dirname "$SKILL_DIR")/surf-data-clickhouse/scripts/ch-query" \
+    "$HOME/.agents/skills/surf-data-clickhouse/scripts/ch-query" \
+    "$HOME/.claude/skills/surf-data-clickhouse/scripts/ch-query"; do
+    if [[ -x "$candidate" ]]; then
+        CH_QUERY="$candidate"
+        break
+    fi
+done
+
+if [[ -z "$CH_QUERY" ]]; then
+    echo "Error: Cannot find ch-query script" >&2
+    exit 1
+fi
+
+SYMBOL=""
+DATE=""
+CLAIM=""
+MODE="price"  # price, ath, ratio
+
+usage() {
+    cat <<EOF
+Usage: verify-price [options]
+
+Verify token price claims against ClickHouse data.
+
+Options:
+  --symbol <token>  Token symbol (e.g., SOL, ETH, BTC) — REQUIRED
+  --date <date>     Date to check (YYYY-MM-DD) — default: today
+  --claim <price>   AI's claimed price (for comparison output)
+  --mode <mode>     Verification mode:
+                      price — spot price on date (default)
+                      ath   — all-time high per year
+                      ratio — ratio vs BTC per year
+  -h, --help        Show this help
+
+Examples:
+  verify-price --symbol SOL --date 2026-02-12 --claim 81.70
+  verify-price --symbol ETH --mode ath
+  verify-price --symbol SOL --mode ratio
+EOF
+    exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --symbol) SYMBOL="$2"; shift 2 ;;
+        --date) DATE="$2"; shift 2 ;;
+        --claim) CLAIM="$2"; shift 2 ;;
+        --mode) MODE="$2"; shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+done
+
+if [[ -z "$SYMBOL" ]]; then
+    echo "Error: --symbol is required" >&2
+    usage
+fi
+
+SYMBOL_UPPER=$(echo "$SYMBOL" | tr '[:lower:]' '[:upper:]')
+
+case "$MODE" in
+    price)
+        if [[ -z "$DATE" ]]; then
+            DATE=$(date +%Y-%m-%d)
+        fi
+        echo "=== Verifying $SYMBOL_UPPER price on $DATE ==="
+        if [[ -n "$CLAIM" ]]; then
+            echo "AI claimed: \$$CLAIM"
+        fi
+        echo ""
+
+        "$CH_QUERY" --instance surf --format PRETTY --sql "
+        SELECT
+            hour,
+            symbol,
+            price,
+            volume,
+            market_cap
+        FROM external.coingecko_hour
+        WHERE symbol = '$SYMBOL_UPPER'
+          AND hour >= toDateTime('$DATE 00:00:00')
+          AND hour <= toDateTime('$DATE 23:59:59')
+        ORDER BY hour DESC
+        LIMIT 10
+        "
+
+        if [[ -n "$CLAIM" ]]; then
+            echo ""
+            echo "--- Comparison ---"
+            ACTUAL=$("$CH_QUERY" --instance surf --format TSV --sql "
+            SELECT round(avg(price), 4)
+            FROM external.coingecko_hour
+            WHERE symbol = '$SYMBOL_UPPER'
+              AND toDate(hour) = '$DATE'
+            " | tail -1)
+            echo "AI claimed: \$$CLAIM"
+            echo "Actual avg: \$$ACTUAL"
+        fi
+        ;;
+
+    ath)
+        echo "=== $SYMBOL_UPPER All-Time High by Year ==="
+        "$CH_QUERY" --instance surf --format PRETTY --sql "
+        SELECT
+            toYear(hour) as year,
+            round(max(price), 2) as ath,
+            argMax(toDate(hour), price) as ath_date,
+            round(min(price), 2) as atl,
+            argMin(toDate(hour), price) as atl_date,
+            round(avg(price), 2) as avg_price
+        FROM external.coingecko_hour
+        WHERE symbol = '$SYMBOL_UPPER'
+          AND price > 0
+        GROUP BY year
+        ORDER BY year DESC
+        "
+        ;;
+
+    ratio)
+        echo "=== $SYMBOL_UPPER / BTC Ratio by Year ==="
+        "$CH_QUERY" --instance surf --format PRETTY --sql "
+        SELECT
+            toYear(a.hour) as year,
+            round(avg(a.price / b.price), 6) as avg_ratio,
+            round(max(a.price / b.price), 6) as peak_ratio,
+            argMax(toDate(a.hour), a.price / b.price) as peak_date,
+            round(min(a.price / b.price), 6) as trough_ratio
+        FROM external.coingecko_hour a
+        JOIN external.coingecko_hour b
+            ON a.hour = b.hour AND b.symbol = 'BTC'
+        WHERE a.symbol = '$SYMBOL_UPPER'
+          AND a.price > 0 AND b.price > 0
+        GROUP BY year
+        ORDER BY year
+        "
+        ;;
+
+    *)
+        echo "Error: Unknown mode '$MODE'" >&2
+        usage
+        ;;
+esac

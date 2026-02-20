@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Pull recent feedback from ClickHouse and cross-reference with chat messages
+# Outputs structured data for bad case audit
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+CH_QUERY=""
+
+# Find ch-query script (from surf-data-clickhouse skill)
+for candidate in \
+    "$(dirname "$SKILL_DIR")/surf-data-clickhouse/scripts/ch-query" \
+    "$HOME/.agents/skills/surf-data-clickhouse/scripts/ch-query" \
+    "$HOME/.claude/skills/surf-data-clickhouse/scripts/ch-query"; do
+    if [[ -x "$candidate" ]]; then
+        CH_QUERY="$candidate"
+        break
+    fi
+done
+
+if [[ -z "$CH_QUERY" ]]; then
+    echo "Error: Cannot find ch-query script from surf-data-clickhouse skill" >&2
+    echo "Make sure surf-data-clickhouse skill is installed" >&2
+    exit 1
+fi
+
+DAYS=7
+OUTPUT_DIR="/tmp/bad-case-audit"
+FORMAT="TSV"
+
+usage() {
+    cat <<EOF
+Usage: pull-feedback [options]
+
+Pull recent user feedback and cross-reference with chat messages and Langfuse traces.
+
+Options:
+  --days <n>        Number of days to look back (default: 7)
+  --output <dir>    Output directory (default: /tmp/bad-case-audit)
+  --format <fmt>    Output format: TSV, JSON, CSV (default: TSV)
+  --check-setup     Verify dependencies
+  -h, --help        Show this help
+EOF
+    exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --days) DAYS="$2"; shift 2 ;;
+        --output) OUTPUT_DIR="$2"; shift 2 ;;
+        --format) FORMAT="$2"; shift 2 ;;
+        --check-setup)
+            echo "Checking dependencies..."
+            echo "ch-query: $CH_QUERY"
+            "$CH_QUERY" --check-setup
+            exit 0
+            ;;
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+done
+
+mkdir -p "$OUTPUT_DIR"
+
+echo "=== Pulling feedback from last $DAYS days ==="
+
+# Step 1: Pull raw feedback
+echo "Step 1: Pulling feedbacks..."
+"$CH_QUERY" --instance analytics --format "$FORMAT" --sql "
+SELECT
+    f.id,
+    f.user_id,
+    f.session_id,
+    f.content,
+    f.type,
+    f.created_at
+FROM default.feedbacks f
+WHERE f.created_at >= now() - INTERVAL $DAYS DAY
+ORDER BY f.created_at DESC
+" > "$OUTPUT_DIR/feedback-raw.tsv"
+
+FEEDBACK_COUNT=$(wc -l < "$OUTPUT_DIR/feedback-raw.tsv")
+echo "  Found $((FEEDBACK_COUNT - 1)) feedback items"
+
+# Step 2: Pull associated chat messages
+echo "Step 2: Pulling chat messages for feedback sessions..."
+"$CH_QUERY" --instance analytics --format "$FORMAT" --sql "
+SELECT
+    cm.session_id,
+    cm.human_message,
+    substring(cm.ai_massage, 1, 500) as ai_response_preview,
+    cm.user_goal,
+    cm.core_subject,
+    cm.ai_action,
+    cm.surf_platform,
+    cm.lang,
+    cm.created_at
+FROM default.chat_messages cm
+WHERE cm.session_id IN (
+    SELECT DISTINCT session_id
+    FROM default.feedbacks
+    WHERE created_at >= now() - INTERVAL $DAYS DAY
+    AND session_id IS NOT NULL
+)
+ORDER BY cm.session_id, cm.created_at
+" > "$OUTPUT_DIR/chat-messages.tsv"
+
+MSG_COUNT=$(wc -l < "$OUTPUT_DIR/chat-messages.tsv")
+echo "  Found $((MSG_COUNT - 1)) chat messages"
+
+# Step 3: Pull Langfuse traces for matching sessions
+echo "Step 3: Pulling Langfuse traces..."
+"$CH_QUERY" --instance analytics --format "$FORMAT" --sql "
+SELECT
+    lt.id as trace_id,
+    lt.name,
+    lt.session_id,
+    lt.timestamp,
+    lt.tags
+FROM default.langfuse_traces lt
+WHERE lt.session_id IN (
+    SELECT DISTINCT toString(session_id)
+    FROM default.feedbacks
+    WHERE created_at >= now() - INTERVAL $DAYS DAY
+    AND session_id IS NOT NULL
+)
+ORDER BY lt.session_id, lt.timestamp
+" > "$OUTPUT_DIR/langfuse-traces.tsv"
+
+TRACE_COUNT=$(wc -l < "$OUTPUT_DIR/langfuse-traces.tsv")
+echo "  Found $((TRACE_COUNT - 1)) Langfuse traces"
+
+# Step 4: Pull message interactions (thumbs up/down)
+echo "Step 4: Pulling message interactions..."
+"$CH_QUERY" --instance analytics --format "$FORMAT" --sql "
+SELECT
+    mi.user_id,
+    mi.session_id,
+    mi.message_id,
+    mi.type,
+    mi.content,
+    mi.created_at
+FROM default.message_interactions mi
+WHERE mi.created_at >= now() - INTERVAL $DAYS DAY
+ORDER BY mi.created_at DESC
+" > "$OUTPUT_DIR/interactions.tsv"
+
+INT_COUNT=$(wc -l < "$OUTPUT_DIR/interactions.tsv")
+echo "  Found $((INT_COUNT - 1)) message interactions"
+
+echo ""
+echo "=== Output files ==="
+echo "  $OUTPUT_DIR/feedback-raw.tsv"
+echo "  $OUTPUT_DIR/chat-messages.tsv"
+echo "  $OUTPUT_DIR/langfuse-traces.tsv"
+echo "  $OUTPUT_DIR/interactions.tsv"
+echo ""
+echo "Next: Read these files and classify each complaint using the root cause decision tree in SKILL.md"
