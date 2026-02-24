@@ -150,6 +150,60 @@ After identification, PostHog batch exports merge all `distinct_id` values, so `
 ### Always verify SQL against live ClickHouse
 Mocked unit tests don't catch ClickHouse-specific syntax errors (FINAL alias ordering, CTE materialization bugs, aggregate alias collisions). Always test queries against the real database.
 
+## Query Performance Best Practices
+
+### Check table ORDER BY before writing WHERE clauses
+ClickHouse can only use primary key index pruning if your WHERE filters match the **leftmost prefix** of the ORDER BY key. Check the table's ORDER BY with `SHOW CREATE TABLE` and filter on those columns first.
+```sql
+-- Table: ORDER BY (project_id, type, toDate(start_time), id)
+-- GOOD: filters on leftmost keys → granule pruning
+WHERE project_id = 'xxx' AND type = 'GENERATION' AND toDate(start_time) >= today() - 7
+-- BAD: skips project_id and type → full scan
+WHERE start_time >= now() - INTERVAL 7 DAY
+```
+
+### Use partition filters for time-range queries
+Tables with `PARTITION BY toYYYYMM(timestamp)` can skip entire months of data. Always include a time filter that aligns with the partition key so ClickHouse prunes partitions before reading.
+```sql
+-- Table: PARTITION BY toYYYYMM(created_at)
+-- GOOD: ClickHouse only reads 1 partition
+WHERE created_at >= now() - INTERVAL 2 DAY
+-- BAD: no time filter → scans all partitions
+WHERE user_id = 'xxx'
+```
+
+### Don't wrap ORDER BY columns in functions
+Wrapping a primary key column in a function prevents index usage. Move the function to the other side of the comparison.
+```sql
+-- BAD: toString() wraps the ORDER BY key → no index
+WHERE toString(user_id) = 'some-uuid'
+-- GOOD: direct comparison → index works
+WHERE user_id = toUUID('some-uuid')
+
+-- BAD: toDate() on indexed column
+WHERE toDate(created_at) = today()
+-- GOOD: range comparison preserves index
+WHERE created_at >= today() AND created_at < today() + 1
+```
+
+### Use bloom_filter indexes for point lookups on non-primary columns
+Tables may have `bloom_filter` secondary indexes on columns like `session_id`, `trace_id`, `user_id`. These allow fast point lookups even when the column isn't in the ORDER BY. Check with:
+```sql
+SELECT table, name, expr FROM system.data_skipping_indices WHERE database = 'your_db'
+```
+
+### Scope subqueries and anti-joins
+Unbounded subqueries in `NOT IN` or `IN` clauses scan entire tables. Always add a time filter inside the subquery.
+```sql
+-- BAD: full table scan of response_eval_scores
+WHERE id NOT IN (SELECT observation_id FROM response_eval_scores FINAL)
+-- GOOD: scoped to recent data
+WHERE id NOT IN (SELECT observation_id FROM response_eval_scores FINAL WHERE evaluated_at >= now() - INTERVAL 3 DAY)
+```
+
+### Avoid reading large String columns unnecessarily
+Columns like `input`, `output`, `metadata` can be huge (multi-KB per row). Don't use `length(input) > 0` to check non-emptiness — it forces reading the entire column from S3 storage. Use `IS NOT NULL` instead (reads only the null bitmap).
+
 ## Error Handling
 
 If queries fail:

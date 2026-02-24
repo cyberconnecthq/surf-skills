@@ -2,8 +2,9 @@
 
 Instance: `surf-analytics` (host resolved from AWS Secrets Manager at runtime)
 
-Two databases:
-- **`default`** — Product analytics tables synced from the application database + cloud Langfuse export
+Three databases:
+- **`default`** — Product analytics tables synced from the application database
+- **`langfuse_cloud`** — Langfuse cloud S3 export (observations, traces, scores). Replaces the old `default.langfuse_*` tables.
 - **`langfuse`** — Self-hosted Langfuse (moving to this as primary; sampled at configurable rate via `LANGFUSE_SECONDARY_SAMPLE_RATE` in odin-flow)
 
 ## Tables
@@ -68,28 +69,68 @@ Two databases:
 | surf_platform | Nullable(String) | web/ios/android |
 | created_at | DateTime64(3) | |
 
-### `langfuse_traces` — LLM traces from cloud Langfuse export (7.6M rows, 335 GiB)
+### `langfuse_traces` / `langfuse_observations` / `langfuse_scores` (DEPRECATED)
 
-> **Being replaced by `langfuse.traces`** — cloud export loses application metadata (message_id, user context). Self-hosted Langfuse preserves it.
+> **Replaced by `langfuse_cloud.traces`, `langfuse_cloud.observations`, `langfuse_cloud.scores`.**
+> Old tables in `default` database will be dropped after migration verification.
+
+---
+
+## `langfuse_cloud` Database — Cloud Langfuse S3 Export
+
+Ingested from S3 JSONL exports via Dagster. Tables use source-matching ORDER BY for efficient queries.
+
+### `langfuse_cloud.traces` — LLM traces (~7.8M rows)
+
+ORDER BY: `(project_id, toDate(timestamp), id)` | PARTITION BY: `toYYYYMM(timestamp)` | Bloom: `idx_id`, `idx_session_id`, `idx_user_id`
 
 | Column | Type | Notes |
 |--------|------|-------|
-| id | String | Trace ID (hex hash, e.g. `39f4fc6f487399b00a8b1c07bd19c4d6`) |
-| name | Nullable(String) | Flow name: `AskFast`, `V2_SIMPLE`, `V2_INSTANT`, `V2`, `V2_THINKING`, `Offline Research`, `LangGraph`, `Research` |
-| session_id | Nullable(String) | **Join key to `chat_sessions.id`** (cast with `toString()` — session_id is UUID in chat tables, String here) |
+| id | String | Trace ID (hex hash) |
+| name | String | Flow name: `AskFast`, `V2_SIMPLE`, `V2_INSTANT`, `V2`, `V2_THINKING`, `Offline Research`, `LangGraph`, `Research` |
+| session_id | Nullable(String) | **Join key to `chat_sessions.id`** |
 | user_id | String | App user UUID |
 | timestamp | DateTime64(3) | |
-| environment | Nullable(String) | |
-| project_id | Nullable(String) | |
-| metadata | Nullable(String) | **Only SDK telemetry** (`resourceAttributes`, `scope`). Does NOT contain `message_id` or app context. |
+| environment | LowCardinality(String) | |
+| project_id | String | |
+| metadata | Map(LowCardinality(String), String) | SDK telemetry only (no `message_id`) |
 | tags | Array(String) | |
 | input | Nullable(String) | JSON input |
 | output | Nullable(String) | JSON output |
 
-### `langfuse_observations` — LLM observations from cloud export (129M rows, 1.29 TiB)
-Detailed LLM call observations. Largest table. Being replaced by `langfuse.observations`.
+### `langfuse_cloud.observations` — LLM observations (~138M rows)
 
-### `langfuse_scores` — LLM evaluation scores (633K rows)
+ORDER BY: `(project_id, type, toDate(start_time), id)` | PARTITION BY: `toYYYYMM(start_time)` | Bloom: `idx_id`, `idx_trace_id`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | String | Observation ID |
+| trace_id | String | FK to `langfuse_cloud.traces.id` |
+| type | LowCardinality(String) | `GENERATION`, `SPAN` |
+| name | String | Operation name |
+| start_time | DateTime64(3) | |
+| end_time | Nullable(DateTime64(3)) | |
+| metadata | Map(LowCardinality(String), String) | Contains `message_id`, `user_id`, `thread_id` on root observations |
+| provided_model_name | Nullable(String) | LLM model used |
+| usage_details | Map(LowCardinality(String), String) | Token counts as strings (`input`, `output`, `total`) |
+| cost_details | Map(LowCardinality(String), String) | Cost breakdown as strings (`input`, `output`, `total`) |
+| input | Nullable(String) | |
+| output | Nullable(String) | |
+
+### `langfuse_cloud.scores` — LLM evaluation scores (~641K rows)
+
+ORDER BY: `(project_id, toDate(timestamp), name, id)` | PARTITION BY: `toYYYYMM(timestamp)` | Bloom: `idx_id`, `idx_trace_id`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | String | Score ID |
+| trace_id | String | FK to traces |
+| name | String | Score name |
+| value | Float64 | Numeric score |
+| source | String | `API`, `ANNOTATION`, etc. |
+| data_type | String | `NUMERIC`, `BOOLEAN`, `CATEGORICAL` |
+| string_value | Nullable(String) | For non-numeric scores |
+| timestamp | DateTime64(3) | |
 
 ---
 
