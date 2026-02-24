@@ -9,8 +9,6 @@ Default to **standard markdown**. The summary is posted to Notion (which needs m
 ```
 # Team Progress — YYYY-MM-DD
 
-_Window description · N commits_
-
 ## By Repo
 
 **repo-name** — Contributor1, Contributor2
@@ -57,6 +55,7 @@ Raw commit messages like:
 Become: **"Bot classification fixes (SQL escaping, OOM, dependency)"**
 
 Rules:
+- No metadata in the summary — no commit counts, no timestamps, no window descriptions
 - Write like telling a teammate what someone worked on today
 - Group related commits into one theme (don't list 5 separate fix commits)
 - Lead with the most impactful work, not chores
