@@ -58,6 +58,9 @@ surf-token-data/scripts/surf-token sol-holders --token EPjFWdd5AufqSSqeM2qN1xzyb
 
 # Solscan token price (proxy, 4 credits)
 surf-token-data/scripts/surf-token sol-price --token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# DeBank top token holders with USD values (proxy, 5 credits)
+surf-token-data/scripts/surf-token debank-top-holders --token 0xdac17f958d2ee523a2206206994597c13d831ec7 --chain eth --limit 10
 ```
 
 ## Important Notes
@@ -66,12 +69,14 @@ surf-token-data/scripts/surf-token sol-price --token EPjFWdd5AufqSSqeM2qN1xzybap
 - **flow-type values**: `netflow`, `inflow`, `outflow` for exchange-flow command.
 - **ETF types**: `us-btc-spot`, `us-eth-spot`
 - **Solana tokens**: Use `sol-*` commands with SPL mint address instead of `holder`/`transfer`.
+- **debank-top-holders**: Returns top holders with USD values, useful for whale analysis. `--chain` uses DeBank chain IDs (eth, bsc, matic, etc.).
 
 ## Cost
 
 - Semantic endpoints (holder, transfer, exchange-flow, etc.): 1 credit
 - Moralis proxy (moralis-*): 2 credits
 - Solscan proxy (sol-*): 4 credits
+- DeBank proxy (debank-*): 5 credits
 
 ## Endpoints Reference
 

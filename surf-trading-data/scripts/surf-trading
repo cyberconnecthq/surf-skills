@@ -26,9 +26,13 @@ usage() {
     "market-indicator": {"args": "--asset btc --metric market-indicator/sopr [--window day] [--limit 2]", "description": "CryptoQuant metric (1 credit)"},
     "etf":              {"args": "--type us-btc-spot", "description": "SoSoValue ETF (1 credit). Types: us-btc-spot, us-eth-spot"},
     "volume":           {"args": "--symbol BTC [--limit 5]", "description": "CoinGlass volume (1 credit)"},
-    "cg-ohlc":          {"args": "--id bitcoin [--days 30]", "description": "CoinGecko OHLCV candles (2 credits)"},
-    "cg-trending":      {"args": "", "description": "CoinGecko trending (2 credits)"},
-    "cg-global":        {"args": "", "description": "CoinGecko global market (2 credits)"},
+    "cg-ohlc":          {"args": "--id bitcoin [--days 30]", "description": "CoinGecko OHLCV candles (2 credits, proxy)"},
+    "cg-trending":      {"args": "", "description": "CoinGecko trending coins (2 credits, proxy)"},
+    "cg-global":        {"args": "", "description": "CoinGecko global market stats (2 credits, proxy)"},
+    "cg-market-cap":    {"args": "[--limit 10]", "description": "CoinGecko market cap ranking with 24h change (2 credits, proxy)"},
+    "cg-movers":        {"args": "", "description": "CoinGecko top gainers and losers 24h (2 credits, proxy)"},
+    "cg-search":        {"args": "--query NAME", "description": "CoinGecko search coins by name — find coin ID for price lookups (2 credits, proxy)"},
+    "cg-coin":          {"args": "--id bitcoin", "description": "CoinGecko full coin detail: ATH, supply, market cap (2 credits, proxy)"},
     "--check-setup":    {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -138,6 +142,24 @@ json.dump(d,sys.stdout)
     ;;
   cg-trending) shift; surf_proxy_get "coingecko" "/api/v3/search/trending" ;;
   cg-global)   shift; surf_proxy_get "coingecko" "/api/v3/global" ;;
+  cg-market-cap)
+    shift; limit="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --limit\"}" >&2; exit 1 ;; esac; done
+    surf_proxy_get "coingecko" "/api/v3/coins/markets" "vs_currency=usd&order=market_cap_desc&per_page=${limit}&page=1&sparkline=false"
+    ;;
+  cg-movers) shift; surf_proxy_get "coingecko" "/api/v3/coins/top_gainers_losers" "vs_currency=usd&duration=24h" ;;
+  cg-search)
+    shift; q=""
+    while [[ $# -gt 0 ]]; do case "$1" in --query) q="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --query\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$q" ]] && { echo '{"error": "--query is required (e.g. aave, solana)"}' >&2; exit 1; }
+    surf_proxy_get "coingecko" "/api/v3/search" "query=${q}"
+    ;;
+  cg-coin)
+    shift; id=""
+    while [[ $# -gt 0 ]]; do case "$1" in --id) id="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$id" ]] && { echo '{"error": "--id is required (e.g. bitcoin, ethereum). Use cg-search to find ID."}' >&2; exit 1; }
+    surf_proxy_get "coingecko" "/api/v3/coins/${id}" "localization=false&tickers=false&market_data=true&community_data=false&developer_data=false"
+    ;;
 
-  *) echo "{\"error\": \"Unknown command: $1. Available: price, future, cg-markets, option, liquidation, indicator, market-indicator, etf, volume, cg-ohlc, cg-trending, cg-global\"}" >&2; exit 1 ;;
+  *) echo "{\"error\": \"Unknown command: $1. Available: price, future, cg-markets, option, liquidation, indicator, market-indicator, etf, volume, cg-ohlc, cg-trending, cg-global, cg-market-cap, cg-movers, cg-search, cg-coin\"}" >&2; exit 1 ;;
 esac

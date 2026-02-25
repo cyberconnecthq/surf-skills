@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/token-data"
 
-ALL_COMMANDS="holder, transfer, exchange-flow, etf-flow, exchange-reserve, moralis-holders, moralis-meta, moralis-transfers, sol-holders, sol-transfers, sol-price"
+ALL_COMMANDS="holder, transfer, exchange-flow, etf-flow, exchange-reserve, moralis-holders, moralis-meta, moralis-transfers, sol-holders, sol-transfers, sol-price, debank-top-holders"
 
 usage() {
   cat <<'EOF'
@@ -35,6 +35,7 @@ usage() {
     "sol-holders":      {"args": "--token MINT [--page 1]", "description": "Solscan token holders (4 credits, proxy)"},
     "sol-transfers":    {"args": "--token MINT [--page 1]", "description": "Solscan token transfers (4 credits, proxy)"},
     "sol-price":        {"args": "--token MINT", "description": "Solscan token price (4 credits, proxy)"},
+    "debank-top-holders": {"args": "--token ADDR --chain eth [--limit 10]", "description": "DeBank top token holders with USD values (5 credits, proxy)"},
     "--check-setup":    {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -111,6 +112,14 @@ case "${1:---help}" in
     while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token\"}" >&2; exit 1 ;; esac; done
     [[ -z "$token" ]] && { echo '{"error": "--token is required (SPL mint address)"}' >&2; exit 1; }
     surf_proxy_get "solscan" "/v2.0/token/price" "token=${token}"
+    ;;
+
+  # DeBank proxy
+  debank-top-holders)
+    shift; token=""; chain="eth"; limit="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --chain, --limit\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$token" ]] && { echo '{"error": "--token is required (ERC-20 contract address, e.g. 0xdac17f958d2ee523a2206206994597c13d831ec7)"}' >&2; exit 1; }
+    surf_proxy_get "debank" "/v1/token/top_holders" "id=${token}&chain_id=${chain}&limit=${limit}"
     ;;
 
   *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;

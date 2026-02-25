@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/wallet"
 
-ALL_COMMANDS="balance, token-list, transfer, trading-history, transaction-history, label, label-batch, entity-search, debank-balance, debank-tokens, debank-defi, debank-chains, etherscan-txs, etherscan-tokens, recon-label, recon-batch, recon-search"
+ALL_COMMANDS="balance, token-list, transfer, trading-history, transaction-history, label, debank-balance, debank-tokens, debank-defi, debank-chains, debank-history, debank-net-curve, etherscan-txs, etherscan-tokens, etherscan-gas"
 
 usage() {
   cat <<'EOF'
@@ -24,18 +24,16 @@ usage() {
     "transfer":            {"args": "--address ADDR [--chain eth] [--limit N]", "description": "Get transfer history (1 credit)"},
     "trading-history":     {"args": "--address ADDR [--limit N]", "description": "Get trading history (1 credit)"},
     "transaction-history": {"args": "--address ADDR [--chain eth] [--limit N]", "description": "Get transaction history (1 credit)"},
-    "label":               {"args": "--address ADDR", "description": "Look up address label (1 credit)"},
-    "label-batch":         {"args": "--addresses JSON_ARRAY", "description": "Batch label lookup (2 credits)"},
-    "entity-search":       {"args": "--query NAME", "description": "Search entity by name (2 credits)"},
+    "label":               {"args": "--address ADDR", "description": "Look up address label and entity (1 credit)"},
     "debank-balance":      {"args": "--address ADDR", "description": "DeBank cross-chain balance (5 credits, proxy)"},
     "debank-tokens":       {"args": "--address ADDR", "description": "DeBank all token balances (5 credits, proxy)"},
     "debank-defi":         {"args": "--address ADDR", "description": "DeBank DeFi positions (5 credits, proxy)"},
     "debank-chains":       {"args": "--address ADDR", "description": "DeBank active chains (5 credits, proxy)"},
+    "debank-history":      {"args": "--address ADDR [--chain eth] [--limit 20]", "description": "DeBank full tx history (5 credits, proxy)"},
+    "debank-net-curve":    {"args": "--address ADDR", "description": "DeBank portfolio value over time (5 credits, proxy)"},
     "etherscan-txs":       {"args": "--address ADDR [--chainid 1]", "description": "Etherscan tx history (4 credits, proxy)"},
     "etherscan-tokens":    {"args": "--address ADDR [--chainid 1]", "description": "Etherscan token transfers (4 credits, proxy)"},
-    "recon-label":         {"args": "--address ADDR", "description": "Recon address intelligence (1 credit, proxy)"},
-    "recon-batch":         {"args": "--addresses JSON_ARRAY", "description": "Recon batch lookup (1 credit, proxy)"},
-    "recon-search":        {"args": "--query NAME", "description": "Recon entity search (1 credit, proxy)"},
+    "etherscan-gas":       {"args": "[--chainid 1]", "description": "Etherscan gas prices (4 credits, proxy)"},
     "--check-setup":       {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -73,18 +71,6 @@ case "${1:---help}" in
     [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
     surf_get "${API_PREFIX}/label/${addr}"
     ;;
-  label-batch)
-    shift; addrs=""
-    while [[ $# -gt 0 ]]; do case "$1" in --addresses) addrs="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --addresses\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$addrs" ]] && { echo '{"error": "--addresses is required (JSON array, e.g. [\"0xd8dA...\",\"0x47ac...\"])"}' >&2; exit 1; }
-    surf_post "${API_PREFIX}/label/batch" "{\"addresses\": $addrs}"
-    ;;
-  entity-search)
-    shift; q=""
-    while [[ $# -gt 0 ]]; do case "$1" in --query) q="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --query\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$q" ]] && { echo '{"error": "--query is required (e.g. binance)"}' >&2; exit 1; }
-    surf_get "${API_PREFIX}/entity/search" "query=${q}"
-    ;;
 
   # DeBank proxy
   debank-balance)
@@ -111,6 +97,20 @@ case "${1:---help}" in
     [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
     surf_proxy_get "debank" "/v1/user/used_chain_list" "id=${addr}"
     ;;
+  debank-history)
+    shift; addr=""; chain=""; limit="20"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    q="id=${addr}&page_count=${limit}"
+    [[ -n "$chain" ]] && q="${q}&chain_id=${chain}"
+    surf_proxy_get "debank" "/v1/user/all_history_list" "$q"
+    ;;
+  debank-net-curve)
+    shift; addr=""
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    surf_proxy_get "debank" "/v1/user/total_net_curve" "id=${addr}"
+    ;;
 
   # Etherscan proxy
   etherscan-txs)
@@ -125,25 +125,10 @@ case "${1:---help}" in
     [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
     surf_proxy_get "etherscan" "/v2/api" "chainid=${chainid}&module=account&action=tokentx&address=${addr}&page=1&offset=100&sort=desc"
     ;;
-
-  # Recon proxy
-  recon-label)
-    shift; addr=""
-    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
-    surf_proxy_get "recon" "/intel/address/${addr}"
-    ;;
-  recon-batch)
-    shift; addrs=""
-    while [[ $# -gt 0 ]]; do case "$1" in --addresses) addrs="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --addresses\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$addrs" ]] && { echo '{"error": "--addresses is required (JSON array, e.g. [\"0xd8dA...\",\"0x47ac...\"])"}' >&2; exit 1; }
-    surf_proxy_post "recon" "/intel/addresses/batch" "{\"addresses\": $addrs}"
-    ;;
-  recon-search)
-    shift; q=""
-    while [[ $# -gt 0 ]]; do case "$1" in --query) q="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --query\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$q" ]] && { echo '{"error": "--query is required (e.g. binance)"}' >&2; exit 1; }
-    surf_proxy_get "recon" "/intel/search" "query=${q}"
+  etherscan-gas)
+    shift; chainid="1"
+    while [[ $# -gt 0 ]]; do case "$1" in --chainid) chainid="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --chainid\"}" >&2; exit 1 ;; esac; done
+    surf_proxy_get "etherscan" "/v2/api" "chainid=${chainid}&module=gastracker&action=gasoracle"
     ;;
 
   *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
