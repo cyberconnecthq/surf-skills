@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # surf-trading — CLI for crypto trading data via Hermod API
-# Usage: surf-trading <subcommand> [--symbol SYM] [--interval INT] [--indicator IND]
+# Usage: surf-trading <subcommand> [flags]
 
 set -euo pipefail
 
@@ -15,38 +15,39 @@ usage() {
 {"usage": {
   "command": "surf-trading",
   "subcommands": {
-    "price":            {"args": "--symbol SYM [--interval 1d]", "description": "Get price data (1 credit)"},
-    "future":           {"args": "--symbol SYM", "description": "Get futures data (1 credit)"},
-    "option":           {"args": "--symbol SYM", "description": "Get options data (1 credit)"},
-    "liquidation":      {"args": "--symbol SYM", "description": "Get liquidation data (1 credit)"},
-    "indicator":        {"args": "--symbol SYM --indicator IND [--interval 1d]", "description": "Get technical indicator (1 credit)"},
-    "market-indicator": {"args": "--indicator IND", "description": "Get market-wide indicator (1 credit)"},
-    "etf":              {"args": "--symbol SYM", "description": "Get ETF data (1 credit)"},
-    "volume":           {"args": "--symbol SYM", "description": "Get volume data (1 credit)"},
-    "cg-price":         {"args": "--ids bitcoin,ethereum [--vs usd]", "description": "CoinGecko price lookup (2 credits)"},
+    "price":            {"args": "--ids bitcoin,ethereum [--vs usd] [--include-24hr-change]", "description": "CoinGecko price (1 credit)"},
+    "future":           {"args": "--symbol BTC", "description": "CoinGlass futures OI (1 credit)"},
+    "option":           {"args": "--symbol BTC", "description": "CoinGlass options (1 credit)"},
+    "liquidation":      {"args": "--symbol BTC", "description": "CoinGlass liquidations (1 credit)"},
+    "indicator":        {"args": "--name rsi --symbol BTC/USDT [--interval 1d] [--exchange binance]", "description": "TAAPI indicator (1 credit)"},
+    "market-indicator": {"args": "--asset btc --metric market-indicator/sopr [--window day] [--limit 2]", "description": "CryptoQuant metric (1 credit)"},
+    "etf":              {"args": "--type us-btc-spot", "description": "SoSoValue ETF (1 credit)"},
+    "volume":           {"args": "--symbol BTC", "description": "CoinGlass volume (1 credit)"},
     "cg-ohlc":          {"args": "--id bitcoin [--days 30]", "description": "CoinGecko OHLCV candles (2 credits)"},
-    "cg-trending":      {"args": "", "description": "CoinGecko trending tokens (2 credits)"},
-    "cg-global":        {"args": "", "description": "CoinGecko global market data (2 credits)"},
-    "cg-oi":            {"args": "--symbol BTC [--interval 1d] [--limit 30]", "description": "CoinGlass open interest (3 credits)"},
-    "cg-funding":       {"args": "--symbol BTC [--exchange binance]", "description": "CoinGlass funding rates (3 credits)"},
-    "cg-lsr":           {"args": "--symbol BTC", "description": "CoinGlass long/short ratio (3 credits)"},
-    "cg-liq":           {"args": "--symbol BTC [--range 1d]", "description": "CoinGlass liquidations (3 credits)"},
-    "ta":               {"args": "--indicator rsi --symbol BTC/USDT [--exchange binance] [--interval 1d]", "description": "TAAPI technical indicator (2 credits)"},
-    "etf-flow":         {"args": "--asset bitcoin-spot [--date 2026-02-18]", "description": "SosoValue ETF flows (2 credits)"},
+    "cg-trending":      {"args": "", "description": "CoinGecko trending (2 credits)"},
+    "cg-global":        {"args": "", "description": "CoinGecko global market (2 credits)"},
     "--check-setup":    {"args": "", "description": "Verify environment configuration"}
   }
 }}
 EOF
 }
 
+# Build query string from flags
 build_query() {
   local query=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --ids)       query="${query:+$query&}ids=$2"; shift 2 ;;
+      --vs)        query="${query:+$query&}vs_currencies=$2"; shift 2 ;;
+      --include-24hr-change) query="${query:+$query&}include_24hr_change=true"; shift ;;
       --symbol)    query="${query:+$query&}symbol=$2"; shift 2 ;;
+      --name)      query="${query:+$query&}name=$2"; shift 2 ;;
       --interval)  query="${query:+$query&}interval=$2"; shift 2 ;;
-      --indicator) query="${query:+$query&}indicator=$2"; shift 2 ;;
       --exchange)  query="${query:+$query&}exchange=$2"; shift 2 ;;
+      --asset)     query="${query:+$query&}asset=$2"; shift 2 ;;
+      --metric)    query="${query:+$query&}metric=$2"; shift 2 ;;
+      --window)    query="${query:+$query&}window=$2"; shift 2 ;;
+      --type)      query="${query:+$query&}type=$2"; shift 2 ;;
       --limit)     query="${query:+$query&}limit=$2"; shift 2 ;;
       *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
     esac
@@ -67,14 +68,6 @@ case "${1:---help}" in
     ;;
 
   # CoinGecko proxy
-  cg-price)
-    shift; ids=""; vs="usd"
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --ids) ids="$2"; shift 2 ;; --vs) vs="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$ids" ]] && { echo '{"error": "--ids is required (e.g. bitcoin,ethereum)"}' >&2; exit 1; }
-    surf_proxy_get "coingecko" "/api/v3/simple/price" "ids=${ids}&vs_currencies=${vs}&include_24hr_change=true"
-    ;;
   cg-ohlc)
     shift; id=""; days="30"
     while [[ $# -gt 0 ]]; do
@@ -85,63 +78,6 @@ case "${1:---help}" in
     ;;
   cg-trending) shift; surf_proxy_get "coingecko" "/api/v3/search/trending" ;;
   cg-global)   shift; surf_proxy_get "coingecko" "/api/v3/global" ;;
-
-  # CoinGlass proxy
-  cg-oi)
-    shift; sym=""; interval="1d"; limit="30"
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --symbol) sym="$2"; shift 2 ;; --interval) interval="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$sym" ]] && { echo '{"error": "--symbol is required"}' >&2; exit 1; }
-    surf_proxy_get "coinglass" "/api/futures/openInterest/chart" "symbol=${sym}&interval=${interval}&limit=${limit}"
-    ;;
-  cg-funding)
-    shift; sym=""; exchange=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --symbol) sym="$2"; shift 2 ;; --exchange) exchange="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$sym" ]] && { echo '{"error": "--symbol is required"}' >&2; exit 1; }
-    q="symbol=${sym}"; [[ -n "$exchange" ]] && q="${q}&exchange=${exchange}"
-    surf_proxy_get "coinglass" "/api/futures/fundingRate" "$q"
-    ;;
-  cg-lsr)
-    shift; sym=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --symbol) sym="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$sym" ]] && { echo '{"error": "--symbol is required"}' >&2; exit 1; }
-    surf_proxy_get "coinglass" "/api/futures/longShortRatio" "symbol=${sym}"
-    ;;
-  cg-liq)
-    shift; sym=""; range="1d"
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --symbol) sym="$2"; shift 2 ;; --range) range="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$sym" ]] && { echo '{"error": "--symbol is required"}' >&2; exit 1; }
-    surf_proxy_get "coinglass" "/api/futures/liquidation" "symbol=${sym}&timeRange=${range}"
-    ;;
-
-  # TAAPI proxy
-  ta)
-    shift; ind=""; sym=""; exchange="binance"; interval="1d"
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --indicator) ind="$2"; shift 2 ;; --symbol) sym="$2"; shift 2 ;; --exchange) exchange="$2"; shift 2 ;; --interval) interval="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$ind" ]] && { echo '{"error": "--indicator is required (rsi, macd, bbands, etc.)"}' >&2; exit 1; }
-    [[ -z "$sym" ]] && { echo '{"error": "--symbol is required (e.g. BTC/USDT)"}' >&2; exit 1; }
-    surf_proxy_get "taapi" "/indicator/${ind}" "exchange=${exchange}&symbol=${sym}&interval=${interval}"
-    ;;
-
-  # SosoValue proxy
-  etf-flow)
-    shift; asset=""; date=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in --asset) asset="$2"; shift 2 ;; --date) date="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
-    done
-    [[ -z "$asset" ]] && { echo '{"error": "--asset is required (bitcoin-spot or ethereum-spot)"}' >&2; exit 1; }
-    q=""; [[ -n "$date" ]] && q="date=${date}"
-    surf_proxy_get "sosovalue" "/api/v1/etf/${asset}" "$q"
-    ;;
 
   *) echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2; exit 1 ;;
 esac

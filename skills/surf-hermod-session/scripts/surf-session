@@ -122,7 +122,7 @@ cmd_check() {
   load_session || return 1
 
   local http_code body
-  body=$(curl -s -w "\n%{http_code}" \
+  body=$(curl -s --max-time 10 -w "\n%{http_code}" \
     -H "Authorization: Bearer ${HERMOD_TOKEN}" \
     -H "Accept: application/json" \
     "${HERMOD_URL}/v1/health" 2>/dev/null) || {
@@ -163,7 +163,7 @@ remaining = exp - now
 
 status = {
     'hermod_url': '$HERMOD_URL',
-    'user_id': payload.get('user_id'),
+    'user_id': payload.get('user_id') or payload.get('sub'),
     'deploy_id': payload.get('deploy_id'),
     'ssid': payload.get('ssid'),
     'expires_at': exp,
@@ -191,7 +191,7 @@ cmd_credits() {
 
   # Use the /v1/me/credit-summary endpoint
   local http_code body
-  body=$(curl -s -w "\n%{http_code}" \
+  body=$(curl -s --max-time 10 -w "\n%{http_code}" \
     -H "Authorization: Bearer ${HERMOD_TOKEN}" \
     -H "Accept: application/json" \
     "${HERMOD_URL}/v1/me/credit-summary" 2>/dev/null) || {

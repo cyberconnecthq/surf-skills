@@ -79,7 +79,7 @@ case "${1:---help}" in
     shift; q=""
     while [[ $# -gt 0 ]]; do case "$1" in --query) q="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
     [[ -z "$q" ]] && { echo '{"error": "--query is required"}' >&2; exit 1; }
-    surf_post "${API_PREFIX}/entity/search" "{\"query\": \"$q\"}"
+    surf_get "${API_PREFIX}/entity/search" "query=${q}"
     ;;
 
   # DeBank proxy

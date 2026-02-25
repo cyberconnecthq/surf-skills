@@ -16,7 +16,7 @@ surf_get() {
   fi
 
   local http_code body
-  body=$(curl -s -w "\n%{http_code}" \
+  body=$(curl -s --max-time 30 -w "\n%{http_code}" \
     -H "Authorization: Bearer ${HERMOD_TOKEN}" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
@@ -44,7 +44,7 @@ surf_post() {
   local url="${HERMOD_URL}${path}"
 
   local http_code body
-  body=$(curl -s -w "\n%{http_code}" \
+  body=$(curl -s --max-time 30 -w "\n%{http_code}" \
     -X POST \
     -H "Authorization: Bearer ${HERMOD_TOKEN}" \
     -H "Content-Type: application/json" \

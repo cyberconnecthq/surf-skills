@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # surf-project — CLI for crypto project data via Hermod API
-# Usage: surf-project <subcommand> --project NAME
+# Usage: surf-project <subcommand> [flags]
+#
+# Hermod routes project endpoints to two upstreams:
+#   - overview/token-info/funding/team/social/contract-address → Muninn (query param)
+#   - volume/fee/revenue/tvl/users → Token Terminal (project_id param)
 
 set -euo pipefail
 
@@ -15,20 +19,20 @@ usage() {
 {"usage": {
   "command": "surf-project",
   "subcommands": {
-    "overview":         {"args": "--project NAME", "description": "Get project overview (1 credit)"},
-    "token-info":       {"args": "--project NAME", "description": "Get token information (1 credit)"},
-    "funding":          {"args": "--project NAME", "description": "Get funding rounds (1 credit)"},
-    "team":             {"args": "--project NAME", "description": "Get team members (1 credit)"},
-    "contract-address": {"args": "--project NAME", "description": "Get contract addresses (1 credit)"},
-    "social":           {"args": "--project NAME", "description": "Get social links (1 credit)"},
-    "volume":           {"args": "--project NAME", "description": "Get volume data (1 credit)"},
-    "fee":              {"args": "--project NAME", "description": "Get fee data (1 credit)"},
-    "revenue":          {"args": "--project NAME", "description": "Get revenue data (1 credit)"},
-    "tvl":              {"args": "--project NAME", "description": "Get TVL data (1 credit)"},
-    "users":            {"args": "--project NAME", "description": "Get user metrics (1 credit)"},
-    "search":           {"args": "--query NAME [--limit 5]", "description": "Muninn project search (1 credit)"},
-    "tt-metrics":       {"args": "--project-id aave --metrics revenue,tvl [--start DATE] [--end DATE]", "description": "Token Terminal metrics (2 credits)"},
-    "tt-ranking":       {"args": "--metric tvl [--project-ids aave,uniswap]", "description": "Token Terminal ranking (2 credits)"},
+    "overview":         {"args": "--query aave", "description": "Project overview via Muninn (1 credit)"},
+    "token-info":       {"args": "--query uniswap", "description": "Token info via Muninn (1 credit)"},
+    "funding":          {"args": "--query aave", "description": "Funding rounds via Muninn (1 credit)"},
+    "team":             {"args": "--query aave", "description": "Team members via Muninn (1 credit)"},
+    "contract-address": {"args": "--query aave", "description": "Contract addresses via Muninn (1 credit)"},
+    "social":           {"args": "--query aave", "description": "Social links via Muninn (1 credit)"},
+    "volume":           {"args": "--project-id uniswap", "description": "Volume via Token Terminal (1 credit)"},
+    "fee":              {"args": "--project-id uniswap", "description": "Fees via Token Terminal (1 credit)"},
+    "revenue":          {"args": "--project-id lido", "description": "Revenue via Token Terminal (1 credit)"},
+    "tvl":              {"args": "--project-id aave", "description": "TVL via Token Terminal (1 credit)"},
+    "users":            {"args": "--project-id opensea", "description": "Users via Token Terminal (1 credit)"},
+    "search":           {"args": "--query NAME [--limit 5]", "description": "Muninn project search (1 credit, proxy)"},
+    "tt-metrics":       {"args": "--project-id aave --metrics revenue,tvl [--start DATE] [--end DATE]", "description": "Token Terminal metrics (2 credits, proxy)"},
+    "tt-ranking":       {"args": "--metric tvl [--project-ids aave,uniswap]", "description": "Token Terminal ranking (2 credits, proxy)"},
     "--check-setup":    {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -39,9 +43,10 @@ build_query() {
   local query=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --project)   query="${query:+$query&}project=$2"; shift 2 ;;
-      --interval)  query="${query:+$query&}interval=$2"; shift 2 ;;
-      --limit)     query="${query:+$query&}limit=$2"; shift 2 ;;
+      --query)      query="${query:+$query&}query=$2"; shift 2 ;;
+      --project-id) query="${query:+$query&}project_id=$2"; shift 2 ;;
+      --interval)   query="${query:+$query&}interval=$2"; shift 2 ;;
+      --limit)      query="${query:+$query&}limit=$2"; shift 2 ;;
       *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
     esac
   done
@@ -53,8 +58,15 @@ case "${1:---help}" in
   --check-setup) surf_check_setup ;;
   --help|-h) usage ;;
 
-  # Semantic endpoints
-  overview|token-info|funding|team|contract-address|social|volume|fee|revenue|tvl|users)
+  # Muninn-backed endpoints (use --query)
+  overview|token-info|funding|team|contract-address|social)
+    subcmd="$1"; shift
+    query=$(build_query "$@")
+    surf_get "${API_PREFIX}/${subcmd}" "$query"
+    ;;
+
+  # Token Terminal-backed endpoints (use --project-id)
+  volume|fee|revenue|tvl|users)
     subcmd="$1"; shift
     query=$(build_query "$@")
     surf_get "${API_PREFIX}/${subcmd}" "$query"
@@ -62,10 +74,9 @@ case "${1:---help}" in
 
   # Muninn proxy — project search
   search)
-    shift; q=""; limit="5"
-    while [[ $# -gt 0 ]]; do case "$1" in --query) q="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$q" ]] && { echo '{"error": "--query is required"}' >&2; exit 1; }
-    surf_proxy_get "muninn" "/v1/agents/search" "query=${q}&limit=${limit}"
+    shift
+    query=$(build_query "$@")
+    surf_proxy_get "muninn" "/v1/agents/search" "$query"
     ;;
 
   # Token Terminal proxy — metrics
