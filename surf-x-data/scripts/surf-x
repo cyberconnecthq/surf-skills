@@ -109,7 +109,7 @@ json.dump(d,sys.stdout)
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --ids) local_ids="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --ids\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_ids" ]]; then

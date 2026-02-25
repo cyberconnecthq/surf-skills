@@ -16,6 +16,8 @@ source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/project"
 
+ALL_COMMANDS="overview, token-info, funding, team, contract-address, social, volume, fee, revenue, tvl, users, search, tt-metrics, tt-ranking"
+
 usage() {
   cat <<'EOF'
 {"usage": {
@@ -49,7 +51,7 @@ build_query() {
       --project-id) query="${query:+$query&}project_id=$2"; shift 2 ;;
       --interval)   query="${query:+$query&}interval=$2"; shift 2 ;;
       --limit)      query="${query:+$query&}limit=$2"; shift 2 ;;
-      *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
+      *) echo "{\"error\": \"Unknown flag: $1. Valid: --query, --project-id, --interval, --limit\"}" >&2; return 1 ;;
     esac
   done
   echo "$query"
@@ -89,7 +91,7 @@ case "${1:---help}" in
         --project-id) pid="$2"; shift 2 ;; --metrics) metrics="$2"; shift 2 ;;
         --start) start_date="$2"; shift 2 ;; --end) end_date="$2"; shift 2 ;;
         --chains) chains="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --project-id, --metrics, --start, --end, --chains\"}" >&2; exit 1 ;;
       esac
     done
     [[ -z "$pid" ]] && { echo '{"error": "--project-id is required (e.g. aave, uniswap)"}' >&2; exit 1; }
@@ -104,11 +106,11 @@ case "${1:---help}" in
   # Token Terminal proxy — rankings
   tt-ranking)
     shift; metric=""; pids=""
-    while [[ $# -gt 0 ]]; do case "$1" in --metric) metric="$2"; shift 2 ;; --project-ids) pids="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
+    while [[ $# -gt 0 ]]; do case "$1" in --metric) metric="$2"; shift 2 ;; --project-ids) pids="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --metric, --project-ids\"}" >&2; exit 1 ;; esac; done
     [[ -z "$metric" ]] && { echo '{"error": "--metric is required (e.g. tvl, revenue, fees)"}' >&2; exit 1; }
     q=""; [[ -n "$pids" ]] && q="project_ids=${pids}"
     surf_proxy_get "tt" "/v2/metrics/${metric}" "$q"
     ;;
 
-  *) echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2; exit 1 ;;
+  *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
 esac

@@ -17,6 +17,8 @@ source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/token-data"
 
+ALL_COMMANDS="holder, transfer, exchange-flow, etf-flow, exchange-reserve, moralis-holders, moralis-meta, moralis-transfers, sol-holders, sol-transfers, sol-price"
+
 usage() {
   cat <<'EOF'
 {"usage": {
@@ -25,7 +27,7 @@ usage() {
     "holder":           {"args": "--token 0x... --chain eth [--limit 5]", "description": "Moralis token holders (1 credit)"},
     "transfer":         {"args": "--token 0x... --chain eth [--page 1] [--offset 5]", "description": "Etherscan token transfers (1 credit)"},
     "exchange-flow":    {"args": "--asset btc --flow-type netflow [--exchange all_exchange] [--window day] [--limit 3]", "description": "CryptoQuant exchange flow (1 credit)"},
-    "etf-flow":         {"args": "--type us-btc-spot", "description": "SoSoValue ETF flow (1 credit)"},
+    "etf-flow":         {"args": "--type us-btc-spot", "description": "SoSoValue ETF flow (1 credit). Types: us-btc-spot, us-eth-spot"},
     "exchange-reserve": {"args": "--asset btc [--exchange all_exchange] [--window day] [--limit 3]", "description": "CryptoQuant exchange reserve (1 credit)"},
     "moralis-holders":  {"args": "--token ADDR [--chain eth]", "description": "Moralis top holders (2 credits, proxy)"},
     "moralis-meta":     {"args": "--token ADDR [--chain eth]", "description": "Moralis token metadata (2 credits, proxy)"},
@@ -53,7 +55,7 @@ build_query() {
       --limit)     query="${query:+$query&}limit=$2"; shift 2 ;;
       --page)      query="${query:+$query&}page=$2"; shift 2 ;;
       --offset)    query="${query:+$query&}offset=$2"; shift 2 ;;
-      *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
+      *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --chain, --asset, --flow-type, --exchange, --window, --type, --limit, --page, --offset\"}" >&2; return 1 ;;
     esac
   done
   echo "$query"
@@ -74,42 +76,42 @@ case "${1:---help}" in
   # Moralis proxy
   moralis-holders)
     shift; token=""; chain="eth"
-    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$token" ]] && { echo '{"error": "--token is required (contract address)"}' >&2; exit 1; }
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --chain\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$token" ]] && { echo '{"error": "--token is required (ERC-20 contract address)"}' >&2; exit 1; }
     surf_proxy_get "moralis" "/api/v2.2/erc20/${token}/owners" "chain=${chain}&order=DESC&limit=100"
     ;;
   moralis-meta)
     shift; token=""; chain="eth"
-    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$token" ]] && { echo '{"error": "--token is required (contract address)"}' >&2; exit 1; }
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --chain\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$token" ]] && { echo '{"error": "--token is required (ERC-20 contract address)"}' >&2; exit 1; }
     surf_proxy_get "moralis" "/api/v2.2/erc20/metadata" "chain=${chain}&addresses[]=${token}"
     ;;
   moralis-transfers)
     shift; token=""; chain="eth"; limit="100"
-    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
-    [[ -z "$token" ]] && { echo '{"error": "--token is required (contract address)"}' >&2; exit 1; }
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --chain, --limit\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$token" ]] && { echo '{"error": "--token is required (ERC-20 contract address)"}' >&2; exit 1; }
     surf_proxy_get "moralis" "/api/v2.2/erc20/${token}/transfers" "chain=${chain}&limit=${limit}"
     ;;
 
   # Solscan proxy
   sol-holders)
     shift; token=""; page="1"
-    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --page\"}" >&2; exit 1 ;; esac; done
     [[ -z "$token" ]] && { echo '{"error": "--token is required (SPL mint address)"}' >&2; exit 1; }
     surf_proxy_get "solscan" "/v2.0/token/holders" "token=${token}&page=${page}&page_size=100"
     ;;
   sol-transfers)
     shift; token=""; page="1"
-    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --page\"}" >&2; exit 1 ;; esac; done
     [[ -z "$token" ]] && { echo '{"error": "--token is required (SPL mint address)"}' >&2; exit 1; }
     surf_proxy_get "solscan" "/v2.0/token/transfer" "token=${token}&page=${page}&page_size=100"
     ;;
   sol-price)
     shift; token=""
-    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac; done
+    while [[ $# -gt 0 ]]; do case "$1" in --token) token="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --token\"}" >&2; exit 1 ;; esac; done
     [[ -z "$token" ]] && { echo '{"error": "--token is required (SPL mint address)"}' >&2; exit 1; }
     surf_proxy_get "solscan" "/v2.0/token/price" "token=${token}"
     ;;
 
-  *) echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2; exit 1 ;;
+  *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
 esac

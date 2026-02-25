@@ -52,7 +52,7 @@ build_query() {
       --window)    query="${query:+$query&}window=$2"; shift 2 ;;
       --type)      query="${query:+$query&}type=$2"; shift 2 ;;
       --limit)     query="${query:+$query&}limit=$2"; shift 2 ;;
-      *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
+      *) echo "{\"error\": \"Unknown flag: $1. Valid: --ids, --vs, --include-24hr-change, --symbol, --name, --interval, --exchange, --asset, --metric, --window, --type, --limit\"}" >&2; return 1 ;;
     esac
   done
   echo "$query"
@@ -131,7 +131,7 @@ json.dump(d,sys.stdout)
   cg-ohlc)
     shift; id=""; days="30"
     while [[ $# -gt 0 ]]; do
-      case "$1" in --id) id="$2"; shift 2 ;; --days) days="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; exit 1 ;; esac
+      case "$1" in --id) id="$2"; shift 2 ;; --days) days="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --days\"}" >&2; exit 1 ;; esac
     done
     [[ -z "$id" ]] && { echo '{"error": "--id is required (e.g. bitcoin)"}' >&2; exit 1; }
     surf_proxy_get "coingecko" "/api/v3/coins/${id}/ohlc" "vs_currency=usd&days=${days}"

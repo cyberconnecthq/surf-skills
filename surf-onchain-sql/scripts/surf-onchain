@@ -50,5 +50,5 @@ case "${1:---help}" in
   --check-setup) surf_check_setup ;;
   --help|-h) usage ;;
   query) shift; cmd_query "$@" ;;
-  *) echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2; exit 1 ;;
+  *) echo "{\"error\": \"Unknown command: $1. Available: query\"}" >&2; exit 1 ;;
 esac
