@@ -18,6 +18,9 @@ surf-skills/
 │   ├── SKILL.md
 │   ├── references/
 │   └── scripts/
+├── surf-dev-dagster/              # Dagster pipeline management skill
+│   ├── SKILL.md
+│   └── scripts/
 ├── surf-dev-push-code/           # Git workflow automation skill
 │   ├── SKILL.md
 │   └── references/
