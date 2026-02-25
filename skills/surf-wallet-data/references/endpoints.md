@@ -4,29 +4,31 @@
 
 Base path: `/gateway/v1/wallet`. Cost: 1-2 credits.
 
-### GET /balance
-Get wallet balance. Params: `address` (required), `chain` (optional).
+Each endpoint proxies to a specific upstream provider.
 
-### GET /token-list
-List token holdings. Params: `address` (required), `chain` (optional).
+### GET /balance (upstream: DeBank)
+Get wallet balance. Params: `address` (required).
 
-### GET /transfer
-Get transfer history. Params: `address` (required), `chain` (optional), `limit`, `offset`.
+### GET /token-list (upstream: DeBank)
+List token holdings. Params: `address` (required).
 
-### GET /trading-history
-Get DEX trading history. Params: `address` (required), `limit`.
+### GET /transfer (upstream: Etherscan)
+Get transfer history. Params: `address` (required), `chain` (optional: eth, bsc, polygon, etc.), `page` (optional), `offset` (optional), `sort` (optional: asc, desc).
 
-### GET /transaction-history
-Get raw transaction history. Params: `address` (required), `limit`.
+### GET /trading-history (upstream: DeBank)
+Get DEX trading history. Params: `address` (required).
 
-### GET /label/{address}
+### GET /transaction-history (upstream: Etherscan)
+Get raw transaction history. Params: `address` (required), `chain` (optional), `page` (optional), `offset` (optional).
+
+### GET /label/{address} (upstream: Recon)
 Look up address label (exchange, whale, smart money, etc.). Cost: 1 credit.
 
-### POST /label/batch
+### POST /label/batch (upstream: Recon)
 Batch label lookup. Body: `{"addresses": ["0x...", "0x..."]}`. Cost: 2 credits.
 
-### POST /entity/search
-Search entities by name. Body: `{"query": "binance"}`. Cost: 2 credits.
+### GET /entity/search (upstream: Recon)
+Search entities by name. Params: `query` (required, e.g. "binance"). Cost: 2 credits.
 
 ---
 

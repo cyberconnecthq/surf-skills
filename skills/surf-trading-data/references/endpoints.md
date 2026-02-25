@@ -4,28 +4,30 @@
 
 Base path: `/gateway/v1/trading-data`. Cost: 1 credit each.
 
-### GET /price
-Get price data. Params: `symbol` (required), `interval` (optional: 1h, 4h, 1d, 1w).
+Each endpoint proxies to a specific upstream provider. Parameter names match the upstream API.
 
-### GET /future
-Get futures data. Params: `symbol` (required).
+### GET /price (upstream: CoinGecko)
+Get price data. Params: `ids` (required, coingecko id e.g. bitcoin,ethereum), `vs_currencies` (optional, default usd), `include_24hr_change` (optional, true/false).
 
-### GET /option
+### GET /future (upstream: CoinGlass)
+Get futures open interest data. Params: `symbol` (required, e.g. BTC, ETH).
+
+### GET /option (upstream: CoinGlass)
 Get options data. Params: `symbol` (required).
 
-### GET /liquidation
+### GET /liquidation (upstream: CoinGlass)
 Get liquidation data. Params: `symbol` (required).
 
-### GET /indicator
-Get technical indicator. Params: `symbol` (required), `indicator` (required: rsi, macd, ema, sma, bbands), `interval` (optional).
+### GET /indicator (upstream: TAAPI)
+Get technical indicator. Params: `name` (required: rsi, macd, ema, sma, bbands), `symbol` (required, PAIR/QUOTE format e.g. BTC/USDT), `interval` (optional: 1m, 5m, 15m, 1h, 4h, 1d, 1w), `exchange` (optional, default binance).
 
-### GET /market-indicator
-Get market-wide indicator. Params: `indicator` (required: fear-greed, dominance).
+### GET /market-indicator (upstream: CryptoQuant)
+Get market-wide on-chain metric. Params: `asset` (required: btc, eth), `metric` (required, e.g. market-indicator/sopr, market-indicator/nupl), `window` (optional: day, hour), `limit` (optional).
 
-### GET /etf
-Get ETF data. Params: `symbol` (required: BTC, ETH).
+### GET /etf (upstream: SoSoValue)
+Get ETF flow data. Params: `type` (required: us-btc-spot, us-eth-spot).
 
-### GET /volume
+### GET /volume (upstream: CoinGlass)
 Get volume data. Params: `symbol` (required).
 
 ---

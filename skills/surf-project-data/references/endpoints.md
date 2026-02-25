@@ -4,38 +4,48 @@
 
 Base path: `/gateway/v1/project`. Cost: 1 credit each.
 
-### GET /overview
-Get project overview. Params: `project` (required, slug e.g. uniswap, aave, lido).
+Hermod routes to two different upstreams depending on the endpoint:
 
-### GET /token-info
-Get token information. Params: `project` (required).
+### Muninn-backed (use `query` param)
 
-### GET /funding
-Get funding rounds & investors. Params: `project` (required).
+These endpoints proxy to Muninn's `/agents/search` and return full project data.
 
-### GET /team
-Get team members. Params: `project` (required).
+#### GET /overview
+Get project overview. Params: `query` (required, project name/ticker e.g. aave, uniswap).
 
-### GET /contract-address
-Get contract addresses across chains. Params: `project` (required).
+#### GET /token-info
+Get token information. Params: `query` (required).
 
-### GET /social
-Get social media links. Params: `project` (required).
+#### GET /funding
+Get funding rounds & investors. Params: `query` (required).
 
-### GET /volume
-Get trading volume. Params: `project` (required), `interval` (optional).
+#### GET /team
+Get team members. Params: `query` (required).
 
-### GET /fee
-Get protocol fees. Params: `project` (required), `interval` (optional).
+#### GET /contract-address
+Get contract addresses across chains. Params: `query` (required).
 
-### GET /revenue
-Get protocol revenue. Params: `project` (required), `interval` (optional).
+#### GET /social
+Get social media links. Params: `query` (required).
 
-### GET /tvl
-Get Total Value Locked. Params: `project` (required), `interval` (optional).
+### Token Terminal-backed (use `project_id` param)
 
-### GET /users
-Get active user metrics. Params: `project` (required), `interval` (optional).
+These endpoints proxy to Token Terminal and return time-series metrics.
+
+#### GET /volume
+Get trading volume. Params: `project_id` (required, e.g. uniswap, aave).
+
+#### GET /fee
+Get protocol fees. Params: `project_id` (required).
+
+#### GET /revenue
+Get protocol revenue. Params: `project_id` (required).
+
+#### GET /tvl
+Get Total Value Locked. Params: `project_id` (required).
+
+#### GET /users
+Get active user metrics. Params: `project_id` (required).
 
 ---
 

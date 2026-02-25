@@ -4,20 +4,22 @@
 
 Base path: `/gateway/v1/token-data`. Cost: 1 credit each.
 
-### GET /holder
-Get token holder distribution. Params: `symbol` (required).
+Each endpoint proxies to a specific upstream provider. Parameter names vary by upstream.
 
-### GET /transfer
-Get token transfer data. Params: `symbol` (required).
+### GET /holder (upstream: Moralis)
+Get token holder distribution. Params: `token` (required, ERC20 contract address), `chain` (required: eth, base, arbitrum, optimism, polygon, bsc), `limit` (optional).
 
-### GET /exchange-flow
-Get exchange inflow/outflow. Params: `symbol` (required), `exchange` (optional), `interval` (optional).
+### GET /transfer (upstream: Etherscan)
+Get token transfer data. Params: `token` (required, contract address), `chain` (required: eth, base, arbitrum, etc.), `page` (optional), `offset` (optional).
 
-### GET /etf-flow
-Get ETF flow data. Params: `symbol` (required: BTC, ETH).
+### GET /exchange-flow (upstream: CryptoQuant)
+Get exchange inflow/outflow. Params: `asset` (required: btc, eth), `flow_type` (required: netflow, inflow, outflow), `exchange` (optional: all_exchange, binance, etc.), `window` (optional: day, hour), `limit` (optional).
 
-### GET /exchange-reserve
-Get exchange reserve levels. Params: `symbol` (required), `exchange` (optional).
+### GET /etf-flow (upstream: SoSoValue)
+Get ETF flow data. Params: `type` (required: us-btc-spot, us-eth-spot).
+
+### GET /exchange-reserve (upstream: CryptoQuant)
+Get exchange reserve levels. Params: `asset` (required: btc, eth), `exchange` (optional: all_exchange), `window` (optional: day, hour), `limit` (optional).
 
 ---
 

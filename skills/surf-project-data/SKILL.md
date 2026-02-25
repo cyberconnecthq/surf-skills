@@ -8,6 +8,10 @@ tools: ["bash"]
 
 Access comprehensive project-level data including overview, token info, funding, team, contracts, social links, volume, fees, revenue, TVL, and user metrics via the Hermod API Gateway.
 
+Hermod routes project endpoints to two upstreams:
+- **overview / token-info / funding / team / social / contract-address** → Muninn (use `--query`)
+- **volume / fee / revenue / tvl / users** → Token Terminal (use `--project-id`)
+
 ## When to Use
 
 Use this skill when you need to:
@@ -25,38 +29,38 @@ Use this skill when you need to:
 # Check setup
 skills/surf-project-data/scripts/surf-project --check-setup
 
-# Get project overview
-skills/surf-project-data/scripts/surf-project overview --project uniswap
+# Get project overview (Muninn — use --query)
+skills/surf-project-data/scripts/surf-project overview --query aave
 
-# Get token info
-skills/surf-project-data/scripts/surf-project token-info --project uniswap
+# Get token info (Muninn)
+skills/surf-project-data/scripts/surf-project token-info --query uniswap
 
-# Get funding data
-skills/surf-project-data/scripts/surf-project funding --project uniswap
+# Get funding data (Muninn)
+skills/surf-project-data/scripts/surf-project funding --query aave
 
-# Get team info
-skills/surf-project-data/scripts/surf-project team --project uniswap
+# Get team info (Muninn)
+skills/surf-project-data/scripts/surf-project team --query aave
 
-# Get contract addresses
-skills/surf-project-data/scripts/surf-project contract-address --project uniswap
+# Get contract addresses (Muninn)
+skills/surf-project-data/scripts/surf-project contract-address --query aave
 
-# Get social links
-skills/surf-project-data/scripts/surf-project social --project uniswap
+# Get social links (Muninn)
+skills/surf-project-data/scripts/surf-project social --query aave
 
-# Get volume data
-skills/surf-project-data/scripts/surf-project volume --project uniswap
+# Get volume data (Token Terminal — use --project-id)
+skills/surf-project-data/scripts/surf-project volume --project-id uniswap
 
-# Get fee data
-skills/surf-project-data/scripts/surf-project fee --project uniswap
+# Get fee data (Token Terminal)
+skills/surf-project-data/scripts/surf-project fee --project-id uniswap
 
-# Get revenue data
-skills/surf-project-data/scripts/surf-project revenue --project uniswap
+# Get revenue data (Token Terminal)
+skills/surf-project-data/scripts/surf-project revenue --project-id lido
 
-# Get TVL data
-skills/surf-project-data/scripts/surf-project tvl --project uniswap
+# Get TVL data (Token Terminal)
+skills/surf-project-data/scripts/surf-project tvl --project-id aave
 
-# Get user metrics
-skills/surf-project-data/scripts/surf-project users --project uniswap
+# Get user metrics (Token Terminal)
+skills/surf-project-data/scripts/surf-project users --project-id opensea
 ```
 
 ## Cost
