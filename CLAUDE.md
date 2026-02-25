@@ -34,6 +34,20 @@ surf-trading-data/scripts/surf-trading price --ids bitcoin --vs usd
 
 Session persists to `~/.surf-core/session.json` (access_token 1h + refresh_token 30d). Login once, use for 30 days.
 
+## Skill Specification
+
+**All skill changes MUST follow `SKILL-SPEC.md`.** Key rules:
+
+1. **Error messages MUST list valid options** — agents retry-loop without this
+   - `"Unknown flag: $1. Valid: --address, --chain, --limit"`
+   - `"Unknown command: $1. Available: price, future, cg-markets, ..."`
+2. **Commands returning lists MUST support `--limit`** — agents lose context on large responses
+3. **SKILL.md examples MUST be copy-pasteable** — agents run them verbatim, no `<PLACEHOLDER>`
+4. **usage() MUST be valid JSON** with credit cost per subcommand
+5. **Every skill MUST have `--check-setup`**
+
+Run the checklist in `SKILL-SPEC.md` before merging any skill PR.
+
 ## CLI Convention
 
 ```bash
