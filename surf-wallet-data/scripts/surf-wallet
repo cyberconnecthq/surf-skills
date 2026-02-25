@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/wallet"
 
-ALL_COMMANDS="balance, token-list, transfer, trading-history, transaction-history, label, debank-balance, debank-tokens, debank-defi, debank-chains, debank-history, debank-net-curve, etherscan-txs, etherscan-tokens, etherscan-gas, etherscan-abi, etherscan-sourcecode, etherscan-contract-creation"
+ALL_COMMANDS="balance, token-list, transfer, trading-history, transaction-history, label, debank-balance, debank-tokens, debank-defi, debank-chains, debank-history, debank-net-curve, etherscan-txs, etherscan-tokens, etherscan-gas, etherscan-abi, etherscan-sourcecode, etherscan-contract-creation, moralis-net-worth, moralis-profitability, moralis-stats, moralis-swaps, moralis-defi, moralis-ens, moralis-ens-reverse, sol-account, sol-account-tokens, sol-account-txs, sol-account-transfers, sol-account-defi, sol-balance-change"
 
 usage() {
   cat <<'EOF'
@@ -37,6 +37,19 @@ usage() {
     "etherscan-abi":       {"args": "--address ADDR [--chainid 1]", "description": "Etherscan contract ABI (4 credits, proxy)"},
     "etherscan-sourcecode":{"args": "--address ADDR [--chainid 1]", "description": "Etherscan contract source code (4 credits, proxy)"},
     "etherscan-contract-creation":{"args": "--address ADDR [--chainid 1]", "description": "Etherscan contract creation info (4 credits, proxy)"},
+    "moralis-net-worth":   {"args": "--address ADDR [--exclude-spam true]", "description": "Moralis wallet net worth across all chains (2 credits, proxy). Auto scans all EVM chains"},
+    "moralis-profitability":{"args": "--address ADDR [--chain eth]", "description": "Moralis wallet P&L summary — trades, realized profit (2 credits, proxy). Chains: eth, polygon, base"},
+    "moralis-stats":       {"args": "--address ADDR [--chain eth]", "description": "Moralis wallet stats — NFTs, collections, txs, transfers (2 credits, proxy). Chains: eth, bsc, polygon, arbitrum, base, etc."},
+    "moralis-swaps":       {"args": "--address ADDR [--chain eth] [--limit 10] [--cursor TOKEN]", "description": "Moralis wallet DEX swaps (2 credits, proxy). Returns cursor for pagination. Chains: all EVM"},
+    "moralis-defi":        {"args": "--address ADDR [--chain eth]", "description": "Moralis wallet DeFi positions summary (2 credits, proxy). Chains: eth, bsc, polygon, arbitrum, base"},
+    "moralis-ens":         {"args": "--domain NAME", "description": "ENS domain to address lookup (2 credits, proxy). Ethereum ENS only"},
+    "moralis-ens-reverse": {"args": "--address ADDR", "description": "Address to ENS domain reverse lookup (2 credits, proxy). Ethereum only"},
+    "sol-account":         {"args": "--address ADDR", "description": "Solana account detail (4 credits, proxy)"},
+    "sol-account-tokens":  {"args": "--address ADDR [--page 1] [--page-size 10]", "description": "Solana account SPL token holdings (4 credits, proxy). type: token or nft. page_size: 10,20,30,40"},
+    "sol-account-txs":     {"args": "--address ADDR [--limit 10]", "description": "Solana account transactions (4 credits, proxy). limit: 10,20,30,40,60,100"},
+    "sol-account-transfers":{"args": "--address ADDR [--page 1] [--page-size 10]", "description": "Solana account token transfers (4 credits, proxy). page_size: 10,20,30,40,60,100"},
+    "sol-account-defi":    {"args": "--address ADDR [--page 1] [--page-size 10]", "description": "Solana account DeFi activities (4 credits, proxy). page_size: 10,20,30,40,60,100"},
+    "sol-balance-change":  {"args": "--address ADDR [--page 1] [--page-size 10]", "description": "Solana account balance changes (4 credits, proxy). page_size: 10,20,30,40,60,100"},
     "--check-setup":       {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -150,6 +163,91 @@ case "${1:---help}" in
     while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --chainid) chainid="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chainid\"}" >&2; exit 1 ;; esac; done
     [[ -z "$addr" ]] && { echo '{"error": "--address is required (contract address, e.g. 0xdac17f958d2ee523a2206206994597c13d831ec7)"}' >&2; exit 1; }
     surf_proxy_get "etherscan" "/v2/api" "chainid=${chainid}&module=contract&action=getcontractcreation&contractaddresses=${addr}"
+    ;;
+
+  # Moralis proxy (wallet analytics)
+  moralis-net-worth)
+    shift; addr=""; exclude_spam=""
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --exclude-spam) exclude_spam="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --exclude-spam\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    q=""; [[ -n "$exclude_spam" ]] && q="exclude_spam=${exclude_spam}"
+    surf_proxy_get "moralis" "/wallets/${addr}/net-worth" "$q"
+    ;;
+  moralis-profitability)
+    shift; addr=""; chain="eth"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    surf_proxy_get "moralis" "/wallets/${addr}/profitability/summary" "chain=${chain}"
+    ;;
+  moralis-stats)
+    shift; addr=""; chain="eth"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    surf_proxy_get "moralis" "/wallets/${addr}/stats" "chain=${chain}"
+    ;;
+  moralis-swaps)
+    shift; addr=""; chain="eth"; limit="10"; cursor=""
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; --cursor) cursor="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit, --cursor\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    q="chain=${chain}&limit=${limit}"
+    [[ -n "$cursor" ]] && q="${q}&cursor=${cursor}"
+    surf_proxy_get "moralis" "/wallets/${addr}/swaps" "$q"
+    ;;
+  moralis-defi)
+    shift; addr=""; chain="eth"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --chain) chain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    surf_proxy_get "moralis" "/wallets/${addr}/defi/summary" "chain=${chain}"
+    ;;
+  moralis-ens)
+    shift; domain=""
+    while [[ $# -gt 0 ]]; do case "$1" in --domain) domain="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --domain\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$domain" ]] && { echo '{"error": "--domain is required (ENS domain, e.g. vitalik.eth)"}' >&2; exit 1; }
+    surf_proxy_get "moralis" "/resolve/ens/${domain}" ""
+    ;;
+  moralis-ens-reverse)
+    shift; addr=""
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"}' >&2; exit 1; }
+    surf_proxy_get "moralis" "/resolve/${addr}/reverse" ""
+    ;;
+
+  # Solscan proxy (Solana account-level queries)
+  sol-account)
+    shift; addr=""
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (Solana address, e.g. vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg)"}' >&2; exit 1; }
+    surf_proxy_get "solscan" "/v2.0/account/detail" "address=${addr}"
+    ;;
+  sol-account-tokens)
+    shift; addr=""; page="1"; page_size="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; --page-size) page_size="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --page, --page-size\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (Solana address, e.g. vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg)"}' >&2; exit 1; }
+    surf_proxy_get "solscan" "/v2.0/account/token-accounts" "address=${addr}&type=token&page=${page}&page_size=${page_size}"
+    ;;
+  sol-account-txs)
+    shift; addr=""; limit="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --limit) limit="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --limit\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (Solana address, e.g. vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg)"}' >&2; exit 1; }
+    surf_proxy_get "solscan" "/v2.0/account/transactions" "address=${addr}&limit=${limit}"
+    ;;
+  sol-account-transfers)
+    shift; addr=""; page="1"; page_size="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; --page-size) page_size="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --page, --page-size\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (Solana address, e.g. vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg)"}' >&2; exit 1; }
+    surf_proxy_get "solscan" "/v2.0/account/transfer" "address=${addr}&page=${page}&page_size=${page_size}"
+    ;;
+  sol-account-defi)
+    shift; addr=""; page="1"; page_size="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; --page-size) page_size="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --page, --page-size\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (Solana address, e.g. vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg)"}' >&2; exit 1; }
+    surf_proxy_get "solscan" "/v2.0/account/defi/activities" "address=${addr}&page=${page}&page_size=${page_size}"
+    ;;
+  sol-balance-change)
+    shift; addr=""; page="1"; page_size="10"
+    while [[ $# -gt 0 ]]; do case "$1" in --address) addr="$2"; shift 2 ;; --page) page="$2"; shift 2 ;; --page-size) page_size="$2"; shift 2 ;; *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --page, --page-size\"}" >&2; exit 1 ;; esac; done
+    [[ -z "$addr" ]] && { echo '{"error": "--address is required (Solana address, e.g. vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg)"}' >&2; exit 1; }
+    surf_proxy_get "solscan" "/v2.0/account/balance_change" "address=${addr}&page=${page}&page_size=${page_size}"
     ;;
 
   *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;

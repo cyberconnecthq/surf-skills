@@ -12,6 +12,7 @@ surf-core/
 ├── surf-wallet-data/     # Wallet data (balance, holdings, tx history, labels)
 ├── surf-project-data/    # Project data (overview, TVL, revenue, fees, users)
 ├── surf-token-data/      # Token data (holders, transfers, exchange flows)
+├── surf-news-data/       # News data (crypto news search with semantic ranking)
 ├── surf-onchain-sql/     # OnchainSQL (ClickHouse on-chain data queries)
 ├── surf-x-data/          # X/Twitter data (search, users, tweets)
 ├── lib/                  # Shared shell utilities (config loader, HTTP wrapper)
@@ -69,6 +70,7 @@ All data flows through Hermod (`/gateway/v1/`). Auth: `Authorization: Bearer <to
 | Project Data | `/gateway/v1/project/` | 1 |
 | Wallet Data | `/gateway/v1/wallet/` | 1-2 |
 | Token Data | `/gateway/v1/token-data/` | 1 |
+| News Data | `/gateway/v1/news/search` | 1 |
 | OnchainSQL | `/gateway/v1/onchain/query` | 5 |
 | X/Twitter | `/gateway/v1/x/` | 2-3 |
 
