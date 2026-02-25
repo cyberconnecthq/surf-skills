@@ -15,13 +15,12 @@ Hermod routes project endpoints to two upstreams:
 ## When to Use
 
 Use this skill when you need to:
-- Get project overview and metadata
-- Check token information for a project
-- Look up funding rounds and investors
-- Find team members
-- Get contract addresses across chains
-- View social media links
-- Analyze volume, fees, revenue, TVL, and user metrics
+- Get project overview, token info, or social links
+- Look up funding rounds, investors, and team members
+- Get contract addresses across chains for a project
+- Analyze volume, fees, revenue, TVL, and active users over time
+- Compare protocol metrics across projects
+- Search for a project by name to find its project-id
 
 ## CLI Usage
 
@@ -29,7 +28,7 @@ Use this skill when you need to:
 # Check setup
 surf-project-data/scripts/surf-project --check-setup
 
-# Get project overview (Muninn — use --query)
+# Get project overview (Muninn — use --query with project name)
 surf-project-data/scripts/surf-project overview --query aave
 
 # Get token info (Muninn)
@@ -61,11 +60,27 @@ surf-project-data/scripts/surf-project tvl --project-id aave
 
 # Get user metrics (Token Terminal)
 surf-project-data/scripts/surf-project users --project-id opensea
+
+# Search for project (Muninn proxy — use to find project-id)
+surf-project-data/scripts/surf-project search --query aave --limit 5
+
+# Get multi-metric time series (Token Terminal proxy, 2 credits)
+surf-project-data/scripts/surf-project tt-metrics --project-id aave --metrics revenue,tvl --start 2024-01-01 --end 2024-12-31
+
+# Get metric rankings across projects (Token Terminal proxy, 2 credits)
+surf-project-data/scripts/surf-project tt-ranking --metric tvl --project-ids aave,uniswap,lido
 ```
+
+## Important Notes
+
+- **Two parameter styles**: Muninn endpoints use `--query` (project name). Token Terminal endpoints use `--project-id` (slug).
+- **Use `search` to find project-id** when you don't know the exact slug for Token Terminal endpoints.
+- **tt-metrics** supports multiple metrics in one call: `--metrics revenue,tvl,fees`
 
 ## Cost
 
-1 credit per request.
+- Semantic endpoints (overview, tvl, revenue, etc.): 1 credit
+- Proxy endpoints (search, tt-metrics, tt-ranking): 2 credits
 
 ## Endpoints Reference
 

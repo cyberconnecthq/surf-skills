@@ -71,6 +71,6 @@ case "${1:---help}" in
   status)
     python3 "$QUERY_PY" status ;;
   *)
-    echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2
+    echo "{\"error\": \"Unknown command: $1. Available: sync, endpoints, show, search, status\"}" >&2
     exit 1 ;;
 esac

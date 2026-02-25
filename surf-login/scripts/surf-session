@@ -200,7 +200,7 @@ cmd_login() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --url) hermod_url="$2"; shift 2 ;;
-      *) _fail "Unknown flag: $1" ;;
+      *) _fail "Unknown flag: $1. Valid: --url" ;;
     esac
   done
 
@@ -328,7 +328,7 @@ cmd_configure() {
     case "$1" in
       --token) token="$2"; shift 2 ;;
       --url)   url="$2"; shift 2 ;;
-      *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
+      *) echo "{\"error\": \"Unknown flag: $1. Valid: --token, --url\"}" >&2; return 1 ;;
     esac
   done
 
@@ -483,5 +483,5 @@ case "${1:---help}" in
   status)        cmd_status ;;
   credits)       cmd_credits ;;
   logout)        cmd_logout ;;
-  *) echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2; exit 1 ;;
+  *) echo "{\"error\": \"Unknown command: $1. Available: login, configure, refresh, check, status, credits, logout\"}" >&2; exit 1 ;;
 esac
