@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# surf-session — Manage Hermod API Gateway session
+# Usage: surf-session configure --token JWT [--url URL]
+#        surf-session check | status | credits | logout
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SURF_CORE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+SESSION_DIR="${HOME}/.surf-core"
+SESSION_FILE="${SESSION_DIR}/session.json"
+
+usage() {
+  cat <<'EOF'
+{"usage": {
+  "command": "surf-session",
+  "subcommands": {
+    "configure": {"args": "--token JWT [--url URL]", "description": "Save Hermod session (JWT + optional URL)"},
+    "check":     {"args": "", "description": "Verify session connectivity (calls /v1/health)"},
+    "status":    {"args": "", "description": "Show current session info (JWT payload, expiry, URL)"},
+    "credits":   {"args": "", "description": "Check credit balance and plan"},
+    "logout":    {"args": "", "description": "Remove saved session"}
+  },
+  "notes": "Configure a session before using any other surf-core skill. JWT is issued by Muninn."
+}}
+EOF
+}
+
+# Load session: env vars take precedence, then session file
+load_session() {
+  local from_env=false
+
+  if [[ -n "${HERMOD_TOKEN:-}" ]]; then
+    from_env=true
+  elif [[ -f "$SESSION_FILE" ]]; then
+    HERMOD_TOKEN=$(python3 -c "import json; d=json.load(open('$SESSION_FILE')); print(d.get('hermod_token',''))" 2>/dev/null) || HERMOD_TOKEN=""
+    local file_url
+    file_url=$(python3 -c "import json; d=json.load(open('$SESSION_FILE')); print(d.get('hermod_url',''))" 2>/dev/null) || file_url=""
+    if [[ -n "$file_url" ]]; then
+      : "${HERMOD_URL:=$file_url}"
+    fi
+  fi
+
+  : "${HERMOD_URL:=https://api.asksurf.ai/gateway}"
+
+  if [[ -z "${HERMOD_TOKEN:-}" ]]; then
+    echo '{"error": "No session found. Run: surf-session configure --token <JWT>"}' >&2
+    return 1
+  fi
+}
+
+# Decode JWT payload (base64url → JSON) without external dependencies
+decode_jwt_payload() {
+  local token="$1"
+  local payload
+  payload=$(echo "$token" | cut -d. -f2)
+
+  # base64url → base64: replace - with +, _ with /, add padding
+  local padded
+  padded=$(echo "$payload" | tr '_-' '/+')
+  local mod=$((${#padded} % 4))
+  if [[ $mod -eq 2 ]]; then padded="${padded}=="
+  elif [[ $mod -eq 3 ]]; then padded="${padded}="
+  fi
+
+  echo "$padded" | base64 -d 2>/dev/null
+}
+
+cmd_configure() {
+  local token="" url=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --token) token="$2"; shift 2 ;;
+      --url)   url="$2"; shift 2 ;;
+      *) echo "{\"error\": \"Unknown flag: $1\"}" >&2; return 1 ;;
+    esac
+  done
+
+  if [[ -z "$token" ]]; then
+    echo '{"error": "--token is required. Provide the JWT issued by Muninn."}' >&2
+    return 1
+  fi
+
+  # Validate token format (3 base64url segments separated by dots)
+  if [[ ! "$token" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]]; then
+    echo '{"error": "Invalid JWT format. Expected: header.payload.signature"}' >&2
+    return 1
+  fi
+
+  # Check expiration
+  local payload_json
+  payload_json=$(decode_jwt_payload "$token")
+  if [[ -n "$payload_json" ]]; then
+    local exp
+    exp=$(echo "$payload_json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('exp',0))" 2>/dev/null) || exp=0
+    local now
+    now=$(date +%s)
+    if [[ "$exp" -gt 0 && "$exp" -le "$now" ]]; then
+      echo '{"error": "Token is already expired. Request a new JWT from Muninn."}' >&2
+      return 1
+    fi
+  fi
+
+  : "${url:=https://api.asksurf.ai/gateway}"
+
+  # Save session
+  mkdir -p "$SESSION_DIR"
+  python3 -c "
+import json
+data = {'hermod_url': '$url', 'hermod_token': '$token'}
+with open('$SESSION_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+
+  chmod 600 "$SESSION_FILE"
+
+  echo "{\"status\": \"configured\", \"hermod_url\": \"$url\", \"session_file\": \"$SESSION_FILE\"}"
+}
+
+cmd_check() {
+  load_session || return 1
+
+  local http_code body
+  body=$(curl -s -w "\n%{http_code}" \
+    -H "Authorization: Bearer ${HERMOD_TOKEN}" \
+    -H "Accept: application/json" \
+    "${HERMOD_URL}/v1/health" 2>/dev/null) || {
+    echo '{"error": "Connection failed. Check HERMOD_URL and network."}' >&2
+    return 1
+  }
+
+  http_code=$(echo "$body" | tail -1)
+  body=$(echo "$body" | sed '$d')
+
+  if [[ "$http_code" -ge 400 ]]; then
+    echo "{\"error\": \"Health check failed\", \"http_status\": $http_code, \"response\": $body}" >&2
+    return 1
+  fi
+
+  echo "{\"status\": \"connected\", \"hermod_url\": \"$HERMOD_URL\", \"health\": $body}"
+}
+
+cmd_status() {
+  load_session || return 1
+
+  local payload_json
+  payload_json=$(decode_jwt_payload "$HERMOD_TOKEN")
+
+  if [[ -z "$payload_json" ]]; then
+    echo '{"error": "Failed to decode JWT payload"}' >&2
+    return 1
+  fi
+
+  # Extract fields and compute expiry info
+  python3 -c "
+import json, sys, time
+
+payload = json.loads('''$payload_json''')
+exp = payload.get('exp', 0)
+now = int(time.time())
+remaining = exp - now
+
+status = {
+    'hermod_url': '$HERMOD_URL',
+    'user_id': payload.get('user_id'),
+    'deploy_id': payload.get('deploy_id'),
+    'ssid': payload.get('ssid'),
+    'expires_at': exp,
+    'expired': remaining <= 0,
+    'remaining_seconds': max(remaining, 0),
+    'session_source': 'env' if '${HERMOD_TOKEN:-}' == '$HERMOD_TOKEN' and not '$SESSION_FILE' else 'file'
+}
+
+# Friendly remaining time
+if remaining > 86400:
+    status['remaining_human'] = f'{remaining // 86400}d {(remaining % 86400) // 3600}h'
+elif remaining > 3600:
+    status['remaining_human'] = f'{remaining // 3600}h {(remaining % 3600) // 60}m'
+elif remaining > 0:
+    status['remaining_human'] = f'{remaining // 60}m'
+else:
+    status['remaining_human'] = 'EXPIRED'
+
+print(json.dumps(status, indent=2))
+"
+}
+
+cmd_credits() {
+  load_session || return 1
+
+  # Use the /v1/me/credit-summary endpoint
+  local http_code body
+  body=$(curl -s -w "\n%{http_code}" \
+    -H "Authorization: Bearer ${HERMOD_TOKEN}" \
+    -H "Accept: application/json" \
+    "${HERMOD_URL}/v1/me/credit-summary" 2>/dev/null) || {
+    echo '{"error": "Request failed. Check session with: surf-session check"}' >&2
+    return 1
+  }
+
+  http_code=$(echo "$body" | tail -1)
+  body=$(echo "$body" | sed '$d')
+
+  if [[ "$http_code" -ge 400 ]]; then
+    echo "$body" >&2
+    return 1
+  fi
+
+  echo "$body"
+}
+
+cmd_logout() {
+  if [[ -f "$SESSION_FILE" ]]; then
+    rm -f "$SESSION_FILE"
+    echo '{"status": "logged_out", "message": "Session removed"}'
+  else
+    echo '{"status": "no_session", "message": "No session file found"}'
+  fi
+}
+
+# Main dispatch
+case "${1:---help}" in
+  --help|-h)  usage ;;
+  configure)  shift; cmd_configure "$@" ;;
+  check)      cmd_check ;;
+  status)     cmd_status ;;
+  credits)    cmd_credits ;;
+  logout)     cmd_logout ;;
+  *) echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2; exit 1 ;;
+esac

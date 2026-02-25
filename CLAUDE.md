@@ -6,7 +6,8 @@ surf-core is the Agent core capability repository. It provides Skills and CLI to
 
 ```
 surf-core/
-├── skills/                  # Claude Code Skills (SKILL.md + scripts/ + references/)
+├── skills/
+│   ├── surf-hermod-session/ # ** PREREQUISITE ** — connect to Hermod, manage JWT session
 │   ├── surf-trading-data/   # Trading data (price, futures, options, liquidation, indicators)
 │   ├── surf-wallet-data/    # Wallet data (balance, holdings, tx history, labels)
 │   ├── surf-project-data/   # Project data (overview, TVL, revenue, fees, users)
@@ -14,10 +15,27 @@ surf-core/
 │   ├── surf-onchain-sql/    # OnchainSQL (ClickHouse on-chain data queries)
 │   └── surf-x-data/         # X/Twitter data (search, users, tweets)
 ├── lib/                     # Shared shell utilities
-│   ├── config.sh            # Config loader (HERMOD_URL, HERMOD_TOKEN)
+│   ├── config.sh            # Config loader (env → ~/.surf-core/session.json fallback)
 │   └── http.sh              # curl wrapper (unified headers, error handling)
 └── CLAUDE.md
 ```
+
+## Getting Started (Session Setup)
+
+**Before using any data skill, you must configure a Hermod session:**
+
+```bash
+# 1. Configure session with JWT (issued by Muninn)
+skills/surf-hermod-session/scripts/surf-session configure --token <JWT>
+
+# 2. Verify connectivity
+skills/surf-hermod-session/scripts/surf-session check
+
+# 3. Now use any data skill
+skills/surf-trading-data/scripts/surf-trading price --symbol BTC
+```
+
+Session is persisted to `~/.surf-core/session.json` — all skills auto-load from this file. Environment variables (`HERMOD_TOKEN`, `HERMOD_URL`) override the file if set.
 
 ## Design Principles
 
@@ -25,13 +43,7 @@ surf-core/
 - **Zero dependencies**: Bash + curl only, no installation required
 - **Simple & composable**: Single-responsibility commands, no interactive prompts
 - **Co-located**: CLI scripts live inside their Skill directories
-
-## Environment Setup
-
-```bash
-export HERMOD_URL=https://api.asksurf.ai/gateway   # Hermod API base URL
-export HERMOD_TOKEN=<jwt>                            # JWT token for authentication
-```
+- **Session-first**: Configure once, use everywhere — no per-command auth
 
 ## CLI Convention
 
