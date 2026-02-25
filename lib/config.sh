@@ -7,8 +7,9 @@
 
 set -euo pipefail
 
-# Resolve lib directory regardless of where the script is called from
-SURF_CORE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve lib directory regardless of where the script is called from (supports symlinks)
+_resolve_path() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+SURF_CORE_LIB_DIR="$(cd "$(dirname "$(_resolve_path "${BASH_SOURCE[0]}")")" && pwd)"
 SURF_CORE_ROOT="$(cd "$SURF_CORE_LIB_DIR/.." && pwd)"
 
 SURF_SESSION_FILE="${HOME}/.surf-core/session.json"

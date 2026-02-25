@@ -9,7 +9,9 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks so ../../lib/ works even when installed via `npx skills add`
+_resolve_path() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+SCRIPT_DIR="$(cd "$(dirname "$(_resolve_path "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/../../lib/config.sh"
 source "$SCRIPT_DIR/../../lib/http.sh"
 
