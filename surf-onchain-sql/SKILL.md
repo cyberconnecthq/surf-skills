@@ -31,13 +31,13 @@ Use this skill when you need to:
 
 ```bash
 # Check setup
-skills/surf-onchain-sql/scripts/surf-onchain --check-setup
+surf-onchain-sql/scripts/surf-onchain --check-setup
 
 # Run a SQL query
-skills/surf-onchain-sql/scripts/surf-onchain query "SELECT count() FROM ethereum.transactions WHERE block_number > 19000000"
+surf-onchain-sql/scripts/surf-onchain query "SELECT count() FROM ethereum.transactions WHERE block_number > 19000000"
 
 # Run with custom row limit (default 1000, max 10000)
-skills/surf-onchain-sql/scripts/surf-onchain query "SELECT * FROM ethereum.transactions LIMIT 10" --max-rows 5000
+surf-onchain-sql/scripts/surf-onchain query "SELECT * FROM ethereum.transactions LIMIT 10" --max-rows 5000
 ```
 
 ## Query Rules

@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# surf-api — Fetch, cache, and query Hermod OpenAPI specs
+# Specs are saved to ~/.surf-core/api-docs/ for offline use by agents.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SURF_CORE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source config (loads HERMOD_URL + HERMOD_TOKEN from session)
+source "$SURF_CORE_ROOT/lib/config.sh"
+
+# Detect monorepo root (surf-core lives inside surf-v2-mono)
+MONOREPO_ROOT=""
+if [[ -d "$SURF_CORE_ROOT/../hermod/docs" ]]; then
+  MONOREPO_ROOT="$(cd "$SURF_CORE_ROOT/.." && pwd)"
+fi
+
+QUERY_PY="$SCRIPT_DIR/_api_query.py"
+
+usage() {
+  cat <<'EOF'
+{"usage": {
+  "command": "surf-api",
+  "subcommands": {
+    "sync":      {"args": "", "description": "Fetch OpenAPI specs from Hermod API + monorepo, save to ~/.surf-core/api-docs/"},
+    "endpoints": {"args": "[CATEGORY]", "description": "List endpoints. Category: semantic, proxy, trading, wallet, token, project, x, onchain, coingecko, ..."},
+    "show":      {"args": "<path>", "description": "Show endpoint details + curl example. e.g. show /trading-data/price"},
+    "search":    {"args": "<query>", "description": "Search endpoints by keyword. e.g. search bitcoin, search holders"},
+    "status":    {"args": "", "description": "Show sync status, file locations, last sync time"},
+    "--check-setup": {"args": "", "description": "Verify configuration"}
+  },
+  "examples": [
+    "surf-api sync",
+    "surf-api endpoints trading",
+    "surf-api show /trading-data/price",
+    "surf-api search holders",
+    "surf-api endpoints proxy | python3 -c \"import json,sys; [print(e['method'], e['path']) for e in json.load(sys.stdin)['endpoints']]\""
+  ],
+  "storage": "~/.surf-core/api-docs/"
+}}
+EOF
+}
+
+case "${1:---help}" in
+  --help|-h)
+    usage ;;
+  --check-setup)
+    surf_check_setup ;;
+  sync)
+    python3 "$QUERY_PY" sync "${HERMOD_URL:-}" "${HERMOD_TOKEN:-}" "${MONOREPO_ROOT:-}" ;;
+  endpoints)
+    shift
+    python3 "$QUERY_PY" endpoints "${1:-}" ;;
+  show)
+    shift
+    if [[ -z "${1:-}" ]]; then
+      echo '{"error": "Usage: surf-api show <path>. Example: surf-api show /trading-data/price"}' >&2
+      exit 1
+    fi
+    python3 "$QUERY_PY" show "$1" ;;
+  search)
+    shift
+    if [[ -z "${1:-}" ]]; then
+      echo '{"error": "Usage: surf-api search <query>. Example: surf-api search bitcoin"}' >&2
+      exit 1
+    fi
+    python3 "$QUERY_PY" search "$1" ;;
+  status)
+    python3 "$QUERY_PY" status ;;
+  *)
+    echo "{\"error\": \"Unknown command: $1. Use --help for usage.\"}" >&2
+    exit 1 ;;
+esac

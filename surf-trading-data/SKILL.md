@@ -22,31 +22,31 @@ Use this skill when you need to:
 
 ```bash
 # Check setup
-skills/surf-trading-data/scripts/surf-trading --check-setup
+surf-trading-data/scripts/surf-trading --check-setup
 
 # Get price data (CoinGecko — use coingecko id, not ticker)
-skills/surf-trading-data/scripts/surf-trading price --ids bitcoin,ethereum --vs usd
+surf-trading-data/scripts/surf-trading price --ids bitcoin,ethereum --vs usd
 
 # Get futures data (CoinGlass)
-skills/surf-trading-data/scripts/surf-trading future --symbol BTC
+surf-trading-data/scripts/surf-trading future --symbol BTC
 
 # Get options data (CoinGlass)
-skills/surf-trading-data/scripts/surf-trading option --symbol BTC
+surf-trading-data/scripts/surf-trading option --symbol BTC
 
 # Get liquidation data (CoinGlass)
-skills/surf-trading-data/scripts/surf-trading liquidation --symbol BTC
+surf-trading-data/scripts/surf-trading liquidation --symbol BTC
 
 # Get technical indicator (TAAPI — symbol in PAIR/QUOTE format)
-skills/surf-trading-data/scripts/surf-trading indicator --name rsi --symbol BTC/USDT --interval 1d --exchange binance
+surf-trading-data/scripts/surf-trading indicator --name rsi --symbol BTC/USDT --interval 1d --exchange binance
 
 # Get market-wide indicator (CryptoQuant)
-skills/surf-trading-data/scripts/surf-trading market-indicator --asset btc --metric market-indicator/sopr --window day --limit 5
+surf-trading-data/scripts/surf-trading market-indicator --asset btc --metric market-indicator/sopr --window day --limit 5
 
 # Get ETF data (SoSoValue)
-skills/surf-trading-data/scripts/surf-trading etf --type us-btc-spot
+surf-trading-data/scripts/surf-trading etf --type us-btc-spot
 
 # Get volume data (CoinGlass)
-skills/surf-trading-data/scripts/surf-trading volume --symbol BTC
+surf-trading-data/scripts/surf-trading volume --symbol BTC
 ```
 
 ## Cost

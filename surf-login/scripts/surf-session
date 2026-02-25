@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SURF_CORE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+SURF_CORE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SESSION_DIR="${HOME}/.surf-core"
 SESSION_FILE="${SESSION_DIR}/session.json"
 

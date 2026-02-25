@@ -20,19 +20,19 @@ Use this skill when you need to:
 
 ```bash
 # Check setup
-skills/surf-x-data/scripts/surf-x --check-setup
+surf-x-data/scripts/surf-x --check-setup
 
 # Search tweets
-skills/surf-x-data/scripts/surf-x search --query "bitcoin ETF"
+surf-x-data/scripts/surf-x search --query "bitcoin ETF"
 
 # Get user profile
-skills/surf-x-data/scripts/surf-x user --handle vitalikbuterin
+surf-x-data/scripts/surf-x user --handle vitalikbuterin
 
 # Get user tweets
-skills/surf-x-data/scripts/surf-x tweets --handle vitalikbuterin
+surf-x-data/scripts/surf-x tweets --handle vitalikbuterin
 
 # Get specific tweets by IDs
-skills/surf-x-data/scripts/surf-x get-tweets --ids '["1234567890", "0987654321"]'
+surf-x-data/scripts/surf-x get-tweets --ids '["1234567890", "0987654321"]'
 ```
 
 ## Cost

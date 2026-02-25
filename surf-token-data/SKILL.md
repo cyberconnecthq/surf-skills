@@ -26,22 +26,22 @@ Use this skill when you need to:
 
 ```bash
 # Check setup
-skills/surf-token-data/scripts/surf-token --check-setup
+surf-token-data/scripts/surf-token --check-setup
 
 # Get holder data (Moralis — use token contract address + chain)
-skills/surf-token-data/scripts/surf-token holder --token 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 --chain eth --limit 5
+surf-token-data/scripts/surf-token holder --token 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 --chain eth --limit 5
 
 # Get transfer data (Etherscan — use token contract address + chain)
-skills/surf-token-data/scripts/surf-token transfer --token 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 --chain eth --page 1 --offset 5
+surf-token-data/scripts/surf-token transfer --token 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 --chain eth --page 1 --offset 5
 
 # Get exchange flow data (CryptoQuant — use asset symbol)
-skills/surf-token-data/scripts/surf-token exchange-flow --asset btc --flow-type netflow --exchange all_exchange --window day --limit 3
+surf-token-data/scripts/surf-token exchange-flow --asset btc --flow-type netflow --exchange all_exchange --window day --limit 3
 
 # Get ETF flow data (SoSoValue — use type)
-skills/surf-token-data/scripts/surf-token etf-flow --type us-btc-spot
+surf-token-data/scripts/surf-token etf-flow --type us-btc-spot
 
 # Get exchange reserve data (CryptoQuant)
-skills/surf-token-data/scripts/surf-token exchange-reserve --asset btc --exchange all_exchange --window day --limit 3
+surf-token-data/scripts/surf-token exchange-reserve --asset btc --exchange all_exchange --window day --limit 3
 ```
 
 ## Cost

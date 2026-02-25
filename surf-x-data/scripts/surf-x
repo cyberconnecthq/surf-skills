@@ -5,8 +5,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../../lib/config.sh"
-source "$SCRIPT_DIR/../../../lib/http.sh"
+source "$SCRIPT_DIR/../../lib/config.sh"
+source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/x"
 

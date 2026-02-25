@@ -1,5 +1,5 @@
 ---
-name: surf-hermod-session
+name: surf-login
 description: Connect to Hermod API Gateway — login, session management, auto-refresh
 tools: ["bash"]
 ---
@@ -20,7 +20,7 @@ Use this skill **first**, before any other surf-core skill, when:
 
 ```bash
 # Open browser for Google Sign-In (one-click)
-skills/surf-hermod-session/scripts/surf-session login
+surf-login/scripts/surf-session login
 # → Opens browser, user clicks Google account, session saved automatically.
 ```
 
@@ -32,26 +32,26 @@ Agent workflow:
 ### Manual JWT (Advanced, no auto-refresh)
 
 ```bash
-skills/surf-hermod-session/scripts/surf-session configure --token <JWT>
+surf-login/scripts/surf-session configure --token <JWT>
 ```
 
 ## Session Management
 
 ```bash
 # Verify connectivity (auto-refreshes if needed)
-skills/surf-hermod-session/scripts/surf-session check
+surf-login/scripts/surf-session check
 
 # View session info (decoded JWT, expiry, refresh token status)
-skills/surf-hermod-session/scripts/surf-session status
+surf-login/scripts/surf-session status
 
 # Manually refresh access token
-skills/surf-hermod-session/scripts/surf-session refresh
+surf-login/scripts/surf-session refresh
 
 # Check credit balance
-skills/surf-hermod-session/scripts/surf-session credits
+surf-login/scripts/surf-session credits
 
 # Remove session
-skills/surf-hermod-session/scripts/surf-session logout
+surf-login/scripts/surf-session logout
 ```
 
 ## Auto-Refresh
@@ -78,7 +78,7 @@ Environment variables (`HERMOD_TOKEN`, `HERMOD_URL`) override the file.
 ## Staging
 
 ```bash
-skills/surf-hermod-session/scripts/surf-session login --url https://api.stg.ask.surf/gateway
+surf-login/scripts/surf-session login --url https://api.stg.ask.surf/gateway
 ```
 
 See `references/auth.md` for full authentication architecture.

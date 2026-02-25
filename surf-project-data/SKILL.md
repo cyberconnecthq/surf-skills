@@ -27,40 +27,40 @@ Use this skill when you need to:
 
 ```bash
 # Check setup
-skills/surf-project-data/scripts/surf-project --check-setup
+surf-project-data/scripts/surf-project --check-setup
 
 # Get project overview (Muninn — use --query)
-skills/surf-project-data/scripts/surf-project overview --query aave
+surf-project-data/scripts/surf-project overview --query aave
 
 # Get token info (Muninn)
-skills/surf-project-data/scripts/surf-project token-info --query uniswap
+surf-project-data/scripts/surf-project token-info --query uniswap
 
 # Get funding data (Muninn)
-skills/surf-project-data/scripts/surf-project funding --query aave
+surf-project-data/scripts/surf-project funding --query aave
 
 # Get team info (Muninn)
-skills/surf-project-data/scripts/surf-project team --query aave
+surf-project-data/scripts/surf-project team --query aave
 
 # Get contract addresses (Muninn)
-skills/surf-project-data/scripts/surf-project contract-address --query aave
+surf-project-data/scripts/surf-project contract-address --query aave
 
 # Get social links (Muninn)
-skills/surf-project-data/scripts/surf-project social --query aave
+surf-project-data/scripts/surf-project social --query aave
 
 # Get volume data (Token Terminal — use --project-id)
-skills/surf-project-data/scripts/surf-project volume --project-id uniswap
+surf-project-data/scripts/surf-project volume --project-id uniswap
 
 # Get fee data (Token Terminal)
-skills/surf-project-data/scripts/surf-project fee --project-id uniswap
+surf-project-data/scripts/surf-project fee --project-id uniswap
 
 # Get revenue data (Token Terminal)
-skills/surf-project-data/scripts/surf-project revenue --project-id lido
+surf-project-data/scripts/surf-project revenue --project-id lido
 
 # Get TVL data (Token Terminal)
-skills/surf-project-data/scripts/surf-project tvl --project-id aave
+surf-project-data/scripts/surf-project tvl --project-id aave
 
 # Get user metrics (Token Terminal)
-skills/surf-project-data/scripts/surf-project users --project-id opensea
+surf-project-data/scripts/surf-project users --project-id opensea
 ```
 
 ## Cost
