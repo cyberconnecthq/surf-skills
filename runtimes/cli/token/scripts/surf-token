@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# surf-token — CLI for token data via Hermod API
+# Usage: surf-token <subcommand> [flags]
+
+set -euo pipefail
+
+# Resolve symlinks so ../../lib/ works even when installed via `npx skills add`
+_resolve_path() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+SCRIPT_DIR="$(cd "$(dirname "$(_resolve_path "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/../../lib/config.sh"
+source "$SCRIPT_DIR/../../lib/http.sh"
+
+API_PREFIX="/v1/token"
+
+ALL_COMMANDS="holders, info, metrics, search, top, top-traders, transfers, unlock"
+
+usage() {
+  cat <<'EOF'
+{"usage": {
+  "command": "surf-token",
+  "subcommands": {
+    "holders": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain eth [--limit 20] [--offset 0]", "description": "Get token holders (1 credit)"},
+    "info": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth]", "description": "Get token metadata (1 credit)"},
+    "metrics": {"args": "--asset btc --metric exchange_flow [--window day] [--limit 30] [--exchange all_exchange] [--type us-btc-spot]", "description": "Get token time-series metrics (1 credit)"},
+    "search": {"args": "--query bitcoin", "description": "Search tokens (1 credit)"},
+    "top": {"args": "--metric volume [--limit 20] [--offset 0]", "description": "Get top/ranked tokens (1 credit)"},
+    "top-traders": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", "description": "Get top traders for a token (1 credit)"},
+    "transfers": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain eth [--limit 20] [--sort desc]", "description": "Get token transfers (1 credit)"},
+    "unlock": {"args": "--id ethereum [--timeframe 7d]", "description": "Get token unlock schedule (1 credit)"},
+    "--check-setup": {"args": "", "description": "Verify environment configuration"}
+  }
+}}
+EOF
+}
+
+# Main dispatch
+case "${1:---help}" in
+  --check-setup) surf_check_setup ;;
+  --help|-h) usage ;;
+
+  holders)
+    shift
+    local_address="" local_chain="" local_limit="20" local_offset="0"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --address) local_address="$2"; shift 2 ;;
+        --chain) local_chain="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit, --offset\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_address" ]]; then
+      echo '{"error": "--address is required (hex address for EVM, mint address for Solana)"}' >&2; exit 1
+    fi
+    if [[ -z "$local_chain" ]]; then
+      echo '{"error": "--chain is required. Valid: eth, bsc, polygon, avalanche, fantom, arbitrum, optimism, solana"}' >&2; exit 1
+    fi
+    if [[ -n "$local_chain" ]] && [[ "$local_chain" != "eth" ]] && [[ "$local_chain" != "bsc" ]] && [[ "$local_chain" != "polygon" ]] && [[ "$local_chain" != "avalanche" ]] && [[ "$local_chain" != "fantom" ]] && [[ "$local_chain" != "arbitrum" ]] && [[ "$local_chain" != "optimism" ]] && [[ "$local_chain" != "solana" ]]; then
+      echo '{"error": "--chain invalid. Valid: eth, bsc, polygon, avalanche, fantom, arbitrum, optimism, solana"}' >&2; exit 1
+    fi
+    local_qs="address=$(surf_urlencode "$local_address")"
+    local_qs="${local_qs}&chain=$(surf_urlencode "$local_chain")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
+    surf_get "${API_PREFIX}/holders" "$local_qs"
+    ;;
+
+  info)
+    shift
+    local_address="" local_chain="eth"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --address) local_address="$2"; shift 2 ;;
+        --chain) local_chain="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_address" ]]; then
+      echo '{"error": "--address is required (e.g. 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48)"}' >&2; exit 1
+    fi
+    if [[ -n "$local_chain" ]] && [[ "$local_chain" != "eth" ]] && [[ "$local_chain" != "bsc" ]] && [[ "$local_chain" != "polygon" ]] && [[ "$local_chain" != "avalanche" ]] && [[ "$local_chain" != "fantom" ]] && [[ "$local_chain" != "arbitrum" ]] && [[ "$local_chain" != "optimism" ]] && [[ "$local_chain" != "solana" ]]; then
+      echo '{"error": "--chain invalid. Valid: eth, bsc, polygon, avalanche, fantom, arbitrum, optimism, solana"}' >&2; exit 1
+    fi
+    local_qs="address=$(surf_urlencode "$local_address")"
+    [[ -n "$local_chain" ]] && local_qs="${local_qs:+${local_qs}&}chain=$local_chain"
+    surf_get "${API_PREFIX}/info" "$local_qs"
+    ;;
+
+  metrics)
+    shift
+    local_asset="" local_metric="" local_window="day" local_limit="30" local_exchange="all_exchange" local_type="us-btc-spot"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --asset) local_asset="$2"; shift 2 ;;
+        --metric) local_metric="$2"; shift 2 ;;
+        --window) local_window="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --exchange) local_exchange="$2"; shift 2 ;;
+        --type) local_type="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --asset, --metric, --window, --limit, --exchange, --type\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_asset" ]]; then
+      echo '{"error": "--asset is required (e.g. btc)"}' >&2; exit 1
+    fi
+    if [[ -z "$local_metric" ]]; then
+      echo '{"error": "--metric is required. Valid: exchange_flow, etf_flow, exchange_reserve"}' >&2; exit 1
+    fi
+    if [[ -n "$local_metric" ]] && [[ "$local_metric" != "exchange_flow" ]] && [[ "$local_metric" != "etf_flow" ]] && [[ "$local_metric" != "exchange_reserve" ]]; then
+      echo '{"error": "--metric invalid. Valid: exchange_flow, etf_flow, exchange_reserve"}' >&2; exit 1
+    fi
+    if [[ -n "$local_window" ]] && [[ "$local_window" != "day" ]] && [[ "$local_window" != "hour" ]]; then
+      echo '{"error": "--window invalid. Valid: day, hour"}' >&2; exit 1
+    fi
+    if [[ -n "$local_type" ]] && [[ "$local_type" != "us-btc-spot" ]] && [[ "$local_type" != "us-eth-spot" ]]; then
+      echo '{"error": "--type invalid. Valid: us-btc-spot, us-eth-spot"}' >&2; exit 1
+    fi
+    local_qs="asset=$(surf_urlencode "$local_asset")"
+    local_qs="${local_qs}&metric=$(surf_urlencode "$local_metric")"
+    [[ -n "$local_window" ]] && local_qs="${local_qs:+${local_qs}&}window=$local_window"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_exchange" ]] && local_qs="${local_qs:+${local_qs}&}exchange=$local_exchange"
+    [[ -n "$local_type" ]] && local_qs="${local_qs:+${local_qs}&}type=$local_type"
+    surf_get "${API_PREFIX}/metrics" "$local_qs"
+    ;;
+
+  search)
+    shift
+    local_query=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --query) local_query="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_query" ]]; then
+      echo '{"error": "--query is required (e.g. ethereum)"}' >&2; exit 1
+    fi
+    local_qs="q=$(surf_urlencode "$local_query")"
+    surf_get "${API_PREFIX}/search" "$local_qs"
+    ;;
+
+  top)
+    shift
+    local_metric="" local_limit="20" local_offset="0"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --metric) local_metric="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --metric, --limit, --offset\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_metric" ]]; then
+      echo '{"error": "--metric is required. Valid: volume, gainers, losers, exchange_inflow, exchange_outflow, mindshare"}' >&2; exit 1
+    fi
+    if [[ -n "$local_metric" ]] && [[ "$local_metric" != "volume" ]] && [[ "$local_metric" != "gainers" ]] && [[ "$local_metric" != "losers" ]] && [[ "$local_metric" != "exchange_inflow" ]] && [[ "$local_metric" != "exchange_outflow" ]] && [[ "$local_metric" != "mindshare" ]]; then
+      echo '{"error": "--metric invalid. Valid: volume, gainers, losers, exchange_inflow, exchange_outflow, mindshare"}' >&2; exit 1
+    fi
+    local_qs="metric=$(surf_urlencode "$local_metric")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
+    surf_get "${API_PREFIX}/top" "$local_qs"
+    ;;
+
+  top-traders)
+    shift
+    local_address=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --address) local_address="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_address" ]]; then
+      echo '{"error": "--address is required (hex address)"}' >&2; exit 1
+    fi
+    local_qs="address=$(surf_urlencode "$local_address")"
+    surf_get "${API_PREFIX}/top-traders" "$local_qs"
+    ;;
+
+  transfers)
+    shift
+    local_address="" local_chain="" local_limit="20" local_sort="desc"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --address) local_address="$2"; shift 2 ;;
+        --chain) local_chain="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --sort) local_sort="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit, --sort\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_address" ]]; then
+      echo '{"error": "--address is required (hex address for EVM, mint address for Solana)"}' >&2; exit 1
+    fi
+    if [[ -z "$local_chain" ]]; then
+      echo '{"error": "--chain is required. Valid: eth, solana"}' >&2; exit 1
+    fi
+    if [[ -n "$local_chain" ]] && [[ "$local_chain" != "eth" ]] && [[ "$local_chain" != "solana" ]]; then
+      echo '{"error": "--chain invalid. Valid: eth, solana"}' >&2; exit 1
+    fi
+    if [[ -n "$local_sort" ]] && [[ "$local_sort" != "asc" ]] && [[ "$local_sort" != "desc" ]]; then
+      echo '{"error": "--sort invalid. Valid: asc, desc"}' >&2; exit 1
+    fi
+    local_qs="address=$(surf_urlencode "$local_address")"
+    local_qs="${local_qs}&chain=$(surf_urlencode "$local_chain")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_sort" ]] && local_qs="${local_qs:+${local_qs}&}sort=$local_sort"
+    surf_get "${API_PREFIX}/transfers" "$local_qs"
+    ;;
+
+  unlock)
+    shift
+    local_id="" local_timeframe=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --id) local_id="$2"; shift 2 ;;
+        --timeframe) local_timeframe="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --timeframe\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_id" ]]; then
+      echo '{"error": "--id is required (e.g. arbitrum)"}' >&2; exit 1
+    fi
+    local_qs="id=$(surf_urlencode "$local_id")"
+    [[ -n "$local_timeframe" ]] && local_qs="${local_qs:+${local_qs}&}timeframe=$local_timeframe"
+    surf_get "${API_PREFIX}/unlock" "$local_qs"
+    ;;
+
+  *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
+esac

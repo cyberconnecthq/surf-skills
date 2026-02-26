@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# surf-news — CLI for news data via Hermod API
+# Usage: surf-news <subcommand> [flags]
+
+set -euo pipefail
+
+# Resolve symlinks so ../../lib/ works even when installed via `npx skills add`
+_resolve_path() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+SCRIPT_DIR="$(cd "$(dirname "$(_resolve_path "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/../../lib/config.sh"
+source "$SCRIPT_DIR/../../lib/http.sh"
+
+API_PREFIX="/v1/news"
+
+ALL_COMMANDS="ai, ai-detail, feed, search, top"
+
+usage() {
+  cat <<'EOF'
+{"usage": {
+  "command": "surf-news",
+  "subcommands": {
+    "ai": {"args": "[--project-id bitcoin] [--limit 20] [--offset 0]", "description": "Get AI news (1 credit)"},
+    "ai-detail": {"args": "--id ethereum", "description": "Get AI news detail (1 credit)"},
+    "feed": {"args": "[--id ethereum]", "description": "Get news feed (1 credit)"},
+    "search": {"args": "--query bitcoin [--limit 20] [--offset 0]", "description": "Search news articles (1 credit)"},
+    "top": {"args": "--metric recency [--limit 20]", "description": "Get top news (1 credit)"},
+    "--check-setup": {"args": "", "description": "Verify environment configuration"}
+  }
+}}
+EOF
+}
+
+# Main dispatch
+case "${1:---help}" in
+  --check-setup) surf_check_setup ;;
+  --help|-h) usage ;;
+
+  ai)
+    shift
+    local_project_id="" local_limit="20" local_offset="0"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --project-id) local_project_id="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --project-id, --limit, --offset\"}" >&2; exit 1 ;;
+      esac
+    done
+    local_qs=""
+    [[ -n "$local_project_id" ]] && local_qs="${local_qs:+${local_qs}&}project_id=$local_project_id"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
+    surf_get "${API_PREFIX}/ai" "$local_qs"
+    ;;
+
+  ai-detail)
+    shift
+    local_id=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --id) local_id="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_id" ]]; then
+      echo '{"error": "--id is required (e.g. ef068646-6c2d-410b-8223-467c4ce95e30)"}' >&2; exit 1
+    fi
+    local_qs="id=$(surf_urlencode "$local_id")"
+    surf_get "${API_PREFIX}/ai/detail" "$local_qs"
+    ;;
+
+  feed)
+    shift
+    local_id=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --id) local_id="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+      esac
+    done
+    local_qs=""
+    [[ -n "$local_id" ]] && local_qs="${local_qs:+${local_qs}&}id=$local_id"
+    surf_get "${API_PREFIX}/feed" "$local_qs"
+    ;;
+
+  search)
+    shift
+    local_query="" local_limit="20" local_offset="0"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --query) local_query="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query, --limit, --offset\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_query" ]]; then
+      echo '{"error": "--query is required (e.g. bitcoin, ethereum merge, DeFi hack)"}' >&2; exit 1
+    fi
+    local_qs="q=$(surf_urlencode "$local_query")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
+    surf_get "${API_PREFIX}/search" "$local_qs"
+    ;;
+
+  top)
+    shift
+    local_metric="" local_limit="20"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --metric) local_metric="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --metric, --limit\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_metric" ]]; then
+      echo '{"error": "--metric is required. Valid: recency, trending"}' >&2; exit 1
+    fi
+    if [[ -n "$local_metric" ]] && [[ "$local_metric" != "recency" ]] && [[ "$local_metric" != "trending" ]]; then
+      echo '{"error": "--metric invalid. Valid: recency, trending"}' >&2; exit 1
+    fi
+    local_qs="metric=$(surf_urlencode "$local_metric")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    surf_get "${API_PREFIX}/top" "$local_qs"
+    ;;
+
+  *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
+esac

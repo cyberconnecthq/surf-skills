@@ -2,18 +2,38 @@
 
 Agent Skills for Crypto data access via the Hermod API Gateway. Follows the [Agent Skills Open Standard](https://github.com/anthropics/agent-skills) — works with Claude Code, OpenAI Codex, GitHub Copilot, Gemini CLI, and other agent platforms.
 
-## Available Skills
+## Repository Structure
 
-| Skill | Description |
-|-------|-------------|
-| `surf-login` | Login to Hermod via Google Sign-In (prerequisite for all data skills) |
-| `surf-hermod-api` | Fetch, cache, and query Hermod OpenAPI specs (273 endpoints) |
-| `surf-trading-data` | Crypto trading data — prices, futures, options, liquidations, indicators |
-| `surf-wallet-data` | Wallet data — balances, holdings, tx history, address labels |
-| `surf-project-data` | Project data — overview, TVL, revenue, fees, active users |
-| `surf-token-data` | Token data — holders, transfers, exchange flows |
-| `surf-onchain-sql` | OnchainSQL — query on-chain data via ClickHouse |
-| `surf-x-data` | X/Twitter data — search tweets, user profiles, timelines |
+```
+surf-core/
+├── knowledge/          # Domain knowledge (endpoints, patterns, responses)
+│   ├── auth/           # Authentication & session docs
+│   ├── market/         # Market data (prices, futures, options, indicators)
+│   ├── project/        # Project data (overview, TVL, revenue, fees)
+│   ├── token/          # Token data (holders, transfers, flows)
+│   ├── wallet/         # Wallet data (balance, holdings, tx history)
+│   ├── social/         # Social & X/Twitter data (sentiment, users, tweets)
+│   ├── news/           # News data (search, feed, AI summaries)
+│   ├── web/            # Web data (search, fetch)
+│   └── onchain/        # On-chain SQL (ClickHouse databases)
+├── runtimes/           # Executable skill implementations
+│   ├── cli/            # Bash CLI skills
+│   │   ├── lib/        # Shared utilities (config.sh, http.sh)
+│   │   ├── login/      # Google Sign-In, session management
+│   │   ├── hermod-api/ # Fetch, cache, query Hermod OpenAPI specs
+│   │   ├── market/     # Market data — prices, charts, exchanges
+│   │   ├── news/       # Crypto news search with semantic ranking
+│   │   ├── onchain/    # OnchainSQL — query on-chain data via ClickHouse
+│   │   ├── project/    # Project data — overview, TVL, revenue, fees
+│   │   ├── token/      # Token data — holders, transfers, exchange flows
+│   │   ├── wallet/     # Wallet data — balances, holdings, tx history
+│   │   └── social/     # Social & X/Twitter — search, users, tweets
+│   └── http/           # HTTP-based skill implementations
+│       └── market/     # Market data via HTTP
+├── CLAUDE.md
+├── README.md
+└── SKILL-SPEC.md
+```
 
 ## Setup
 
@@ -23,29 +43,27 @@ npx skills add cyberconnecthq/surf-core --global --all
 
 # Or symlink for development
 git clone git@github.com:cyberconnecthq/surf-core.git
-ln -s /path/to/surf-core/surf-login ~/.claude/skills/surf-login
-ln -s /path/to/surf-core/surf-trading-data ~/.claude/skills/surf-trading-data
-# ... etc
+ln -s /path/to/surf-core ~/.claude/skills/surf-core
 ```
 
 ## Quick Start
 
 ```bash
 # 1. Login (one-click Google Sign-In)
-surf-login/scripts/surf-session login
+runtimes/cli/login/scripts/surf-session login
 
 # 2. Get BTC price
-surf-trading-data/scripts/surf-trading price --ids bitcoin --vs usd
+runtimes/cli/market/scripts/surf-market price --ids bitcoin --vs usd
 
 # 3. Check Vitalik's wallet
-surf-wallet-data/scripts/surf-wallet balance --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+runtimes/cli/wallet/scripts/surf-wallet balance --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 
-# 4. Search X for crypto news
-surf-x-data/scripts/surf-x search --query "ethereum ETF"
+# 4. Search social/X for crypto discussions
+runtimes/cli/social/scripts/surf-social search --query "ethereum ETF"
 
 # 5. Explore all 273 API endpoints
-surf-hermod-api/scripts/surf-api sync
-surf-hermod-api/scripts/surf-api search holders
+runtimes/cli/hermod-api/scripts/surf-api sync
+runtimes/cli/hermod-api/scripts/surf-api search holders
 ```
 
 ## Architecture
@@ -53,11 +71,11 @@ surf-hermod-api/scripts/surf-api search holders
 ```
 User / Agent
     │
-    ├── surf-login (Google OAuth → JWT session)
+    ├── runtimes/cli/login (Google OAuth → JWT session)
     │
-    ├── surf-*-data skills (CLI wrappers)
+    ├── runtimes/cli/*  skills (CLI wrappers)
     │       │
-    │       └── lib/ (config.sh + http.sh)
+    │       └── runtimes/cli/lib/ (config.sh + http.sh)
     │               │
     │               └── curl + Bearer token
     │                       │
@@ -71,3 +89,7 @@ session.json              │
 ```
 
 Session is stored at `~/.surf-core/session.json`. Login once, auto-refresh for 30 days.
+
+## Knowledge
+
+The `knowledge/` directory contains domain-specific documentation organized by data category. Each subdirectory includes endpoint references, usage patterns, and example responses that agents can use for context.

@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# surf-onchain — CLI for onchain data via Hermod API
+# Usage: surf-onchain <subcommand> [flags]
+
+set -euo pipefail
+
+# Resolve symlinks so ../../lib/ works even when installed via `npx skills add`
+_resolve_path() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
+SCRIPT_DIR="$(cd "$(dirname "$(_resolve_path "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/../../lib/config.sh"
+source "$SCRIPT_DIR/../../lib/http.sh"
+
+API_PREFIX="/v1/onchain"
+
+ALL_COMMANDS="query, sql, tx"
+
+usage() {
+  cat <<'EOF'
+{"usage": {
+  "command": "surf-onchain",
+  "subcommands": {
+    "query": {"args": "", "description": "Execute structured query on blockchain data (5 credits)"},
+    "sql": {"args": "", "description": "Execute raw SQL query (5 credits)"},
+    "tx": {"args": "--hash 0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060 --chain ethereum", "description": "Get transaction by hash (5 credits)"},
+    "--check-setup": {"args": "", "description": "Verify environment configuration"}
+  }
+}}
+EOF
+}
+
+# Main dispatch
+case "${1:---help}" in
+  --check-setup) surf_check_setup ;;
+  --help|-h) usage ;;
+
+  query)
+    shift
+    local_body=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --body) local_body="$2"; shift 2 ;;
+        *) echo '{"error": "Unknown flag: $1. Valid: --body"}' >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_body" ]]; then
+      echo '{"error": "--body is required (JSON structured query)"}' >&2; exit 1
+    fi
+    surf_post "${API_PREFIX}/query" "$local_body"
+    ;;
+
+  sql)
+    shift
+    local_sql=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --sql) local_sql="$2"; shift 2 ;;
+        *) echo '{"error": "Unknown flag: $1. Valid: --sql"}' >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_sql" ]]; then
+      echo '{"error": "--sql is required (SQL query string)"}' >&2; exit 1
+    fi
+    surf_post "${API_PREFIX}/sql" "{\"sql\": \"$local_sql\"}"
+    ;;
+
+  tx)
+    shift
+    local_hash="" local_chain=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --hash) local_hash="$2"; shift 2 ;;
+        --chain) local_chain="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --hash, --chain\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_hash" ]]; then
+      echo '{"error": "--hash is required"}' >&2; exit 1
+    fi
+    if [[ -z "$local_chain" ]]; then
+      echo '{"error": "--chain is required. Valid: ethereum, goerli, sepolia, polygon, bsc, arbitrum, optimism, base, avalanche, fantom, linea"}' >&2; exit 1
+    fi
+    if [[ -n "$local_chain" ]] && [[ "$local_chain" != "ethereum" ]] && [[ "$local_chain" != "goerli" ]] && [[ "$local_chain" != "sepolia" ]] && [[ "$local_chain" != "polygon" ]] && [[ "$local_chain" != "bsc" ]] && [[ "$local_chain" != "arbitrum" ]] && [[ "$local_chain" != "optimism" ]] && [[ "$local_chain" != "base" ]] && [[ "$local_chain" != "avalanche" ]] && [[ "$local_chain" != "fantom" ]] && [[ "$local_chain" != "linea" ]]; then
+      echo '{"error": "--chain invalid. Valid: ethereum, goerli, sepolia, polygon, bsc, arbitrum, optimism, base, avalanche, fantom, linea"}' >&2; exit 1
+    fi
+    local_qs="hash=$(surf_urlencode "$local_hash")"
+    local_qs="${local_qs}&chain=$(surf_urlencode "$local_chain")"
+    surf_get "${API_PREFIX}/tx" "$local_qs"
+    ;;
+
+  *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
+esac

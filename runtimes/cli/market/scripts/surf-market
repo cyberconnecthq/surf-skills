@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# surf-market — CLI for crypto market data via Hermod API
+# surf-market — CLI for market data via Hermod API
 # Usage: surf-market <subcommand> [flags]
-#
-# TODO: This script will be fully updated when hermod /v1/market/* endpoints are finalized.
-# For now it supports the core endpoints that have been migrated from trading-data.
 
 set -euo pipefail
 
@@ -15,50 +12,32 @@ source "$SCRIPT_DIR/../../lib/http.sh"
 
 API_PREFIX="/v1/market"
 
+ALL_COMMANDS="etf, futures, indicator, liquidation, market-indicator, options, prediction, prediction-detail, price, price-metrics, search, tge, top, trending, volume"
+
 usage() {
   cat <<'EOF'
 {"usage": {
   "command": "surf-market",
   "subcommands": {
-    "price":            {"args": "--ids bitcoin,ethereum [--vs usd] [--include-24hr-change]", "description": "Spot price (1 credit)"},
-    "futures":          {"args": "--symbol BTC [--limit 5]", "description": "Futures OI (1 credit). WARNING: returns large JSON, use --limit"},
-    "options":          {"args": "--symbol BTC [--limit 5]", "description": "Options data (1 credit)"},
-    "liquidation":      {"args": "--symbol BTC [--limit 5]", "description": "Liquidation data (1 credit)"},
-    "indicator":        {"args": "--name rsi --symbol BTC/USDT [--interval 1d] [--exchange binance]", "description": "Technical indicator (1 credit)"},
-    "market-indicator": {"args": "--asset btc --metric sopr [--window day] [--limit 2]", "description": "On-chain market indicator (1 credit)"},
-    "etf":              {"args": "--type us-btc-spot", "description": "ETF flows (1 credit). Types: us-btc-spot, us-eth-spot"},
-    "volume":           {"args": "--symbol BTC [--limit 5]", "description": "Trading volume (1 credit)"},
-    "search":           {"args": "--query solana", "description": "Search coins/tokens (1 credit)"},
-    "top":              {"args": "[--limit 10]", "description": "Top coins by market cap (1 credit)"},
-    "trending":         {"args": "", "description": "Trending coins (1 credit)"},
-    "--check-setup":    {"args": "", "description": "Verify environment configuration"}
+    "etf": {"args": "--type us-btc-spot", "description": "Get ETF metrics (1 credit)"},
+    "futures": {"args": "[--symbol BTC]", "description": "Get futures market data (1 credit)"},
+    "indicator": {"args": "--name rsi --symbol BTC [--interval 1d] [--exchange binance]", "description": "Get technical indicator (1 credit)"},
+    "liquidation": {"args": "[--symbol BTC]", "description": "Get liquidation data (1 credit)"},
+    "market-indicator": {"args": "--asset btc --metric nupl [--window day] [--limit 30] [--exchange all_exchange]", "description": "Get on-chain market metrics (1 credit)"},
+    "options": {"args": "--symbol BTC", "description": "Get options market data (1 credit)"},
+    "prediction": {"args": "--market-id 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "description": "Get prediction market data (1 credit)"},
+    "prediction-detail": {"args": "--project-id bitcoin", "description": "Get prediction market detail for a project (1 credit)"},
+    "price": {"args": "--ids bitcoin,ethereum [--vs-currencies usd] [--include-24hr-change true] [--include-market-cap true]", "description": "Get price data for crypto assets (1 credit)"},
+    "price-metrics": {"args": "--id ethereum [--days 30] [--vs-currency usd]", "description": "Get price time-series metrics (1 credit)"},
+    "search": {"args": "--query bitcoin", "description": "Search market assets (1 credit)"},
+    "tge": {"args": "[--status upcoming]", "description": "Get TGE (Token Generation Event) projects (1 credit)"},
+    "top": {"args": "--metric top_gainers", "description": "Get top/ranked market data (1 credit)"},
+    "trending": {"args": "--type general [--limit 20] [--offset 0]", "description": "Get trending data (1 credit)"},
+    "volume": {"args": "[--symbol BTC]", "description": "Get trading volume data (1 credit)"},
+    "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
 }}
 EOF
-}
-
-# Build query string from flags
-build_query() {
-  local query=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --ids)       query="${query:+$query&}ids=$2"; shift 2 ;;
-      --vs)        query="${query:+$query&}vs_currencies=$2"; shift 2 ;;
-      --include-24hr-change) query="${query:+$query&}include_24hr_change=true"; shift ;;
-      --symbol)    query="${query:+$query&}symbol=$2"; shift 2 ;;
-      --name)      query="${query:+$query&}name=$2"; shift 2 ;;
-      --interval)  query="${query:+$query&}interval=$2"; shift 2 ;;
-      --exchange)  query="${query:+$query&}exchange=$2"; shift 2 ;;
-      --asset)     query="${query:+$query&}asset=$2"; shift 2 ;;
-      --metric)    query="${query:+$query&}metric=$2"; shift 2 ;;
-      --window)    query="${query:+$query&}window=$2"; shift 2 ;;
-      --type)      query="${query:+$query&}type=$2"; shift 2 ;;
-      --limit)     query="${query:+$query&}limit=$2"; shift 2 ;;
-      --query)     query="${query:+$query&}query=$2"; shift 2 ;;
-      *) echo "{\"error\": \"Unknown flag: $1. Valid: --ids, --vs, --include-24hr-change, --symbol, --name, --interval, --exchange, --asset, --metric, --window, --type, --limit, --query\"}" >&2; return 1 ;;
-    esac
-  done
-  echo "$query"
 }
 
 # Main dispatch
@@ -66,63 +45,306 @@ case "${1:---help}" in
   --check-setup) surf_check_setup ;;
   --help|-h) usage ;;
 
-  # Endpoints that can return large arrays — support --limit for truncation
-  futures|options|liquidation|volume)
-    subcmd="$1"; shift
-    _limit=""
-    _args=()
+  etf)
+    shift
+    local_type=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --limit) _limit="$2"; shift 2 ;;
-        *) _args+=("$1"); shift ;;
+        --type) local_type="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --type\"}" >&2; exit 1 ;;
       esac
     done
-    query=$(build_query "${_args[@]+"${_args[@]}"}")
-    if [[ -n "$_limit" ]]; then
-      surf_get "${API_PREFIX}/${subcmd}" "$query" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-limit=int(sys.argv[1])
-if isinstance(d,dict):
-    inner=d.get('data',d)
-    if isinstance(inner,list) and len(inner)>limit:
-        if 'data' in d:
-            d['data']=inner[:limit]
-        else:
-            d=inner[:limit]
-    elif isinstance(inner,dict):
-        for k,v in inner.items():
-            if isinstance(v,list) and len(v)>limit:
-                inner[k]=v[:limit]
-json.dump(d,sys.stdout)
-" "$_limit"
-    else
-      surf_get "${API_PREFIX}/${subcmd}" "$query"
+    if [[ -z "$local_type" ]]; then
+      echo '{"error": "--type is required. Valid: us-btc-spot, us-eth-spot"}' >&2; exit 1
     fi
+    if [[ -n "$local_type" ]] && [[ "$local_type" != "us-btc-spot" ]] && [[ "$local_type" != "us-eth-spot" ]]; then
+      echo '{"error": "--type invalid. Valid: us-btc-spot, us-eth-spot"}' >&2; exit 1
+    fi
+    local_qs="type=$(surf_urlencode "$local_type")"
+    surf_get "${API_PREFIX}/etf" "$local_qs"
     ;;
 
-  price|indicator|market-indicator|etf)
-    subcmd="$1"; shift
-    query=$(build_query "$@")
-    surf_get "${API_PREFIX}/${subcmd}" "$query"
+  futures)
+    shift
+    local_symbol=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --symbol) local_symbol="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --symbol\"}" >&2; exit 1 ;;
+      esac
+    done
+    local_qs=""
+    [[ -n "$local_symbol" ]] && local_qs="${local_qs:+${local_qs}&}symbol=$local_symbol"
+    surf_get "${API_PREFIX}/futures" "$local_qs"
+    ;;
+
+  indicator)
+    shift
+    local_name="" local_symbol="" local_interval="1d" local_exchange="binance"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --name) local_name="$2"; shift 2 ;;
+        --symbol) local_symbol="$2"; shift 2 ;;
+        --interval) local_interval="$2"; shift 2 ;;
+        --exchange) local_exchange="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --name, --symbol, --interval, --exchange\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_name" ]]; then
+      echo '{"error": "--name is required. Valid: rsi, macd, ema, sma, bbands, stoch, adx, atr, cci, obv, vwap, dmi, ichimoku, supertrend"}' >&2; exit 1
+    fi
+    if [[ -z "$local_symbol" ]]; then
+      echo '{"error": "--symbol is required (e.g. BTC/USDT, ETH/USDT, SOL/USDT)"}' >&2; exit 1
+    fi
+    if [[ -n "$local_name" ]] && [[ "$local_name" != "rsi" ]] && [[ "$local_name" != "macd" ]] && [[ "$local_name" != "ema" ]] && [[ "$local_name" != "sma" ]] && [[ "$local_name" != "bbands" ]] && [[ "$local_name" != "stoch" ]] && [[ "$local_name" != "adx" ]] && [[ "$local_name" != "atr" ]] && [[ "$local_name" != "cci" ]] && [[ "$local_name" != "obv" ]] && [[ "$local_name" != "vwap" ]] && [[ "$local_name" != "dmi" ]] && [[ "$local_name" != "ichimoku" ]] && [[ "$local_name" != "supertrend" ]]; then
+      echo '{"error": "--name invalid. Valid: rsi, macd, ema, sma, bbands, stoch, adx, atr, cci, obv, vwap, dmi, ichimoku, supertrend"}' >&2; exit 1
+    fi
+    if [[ -n "$local_interval" ]] && [[ "$local_interval" != "1m" ]] && [[ "$local_interval" != "5m" ]] && [[ "$local_interval" != "15m" ]] && [[ "$local_interval" != "30m" ]] && [[ "$local_interval" != "1h" ]] && [[ "$local_interval" != "2h" ]] && [[ "$local_interval" != "4h" ]] && [[ "$local_interval" != "12h" ]] && [[ "$local_interval" != "1d" ]] && [[ "$local_interval" != "1w" ]]; then
+      echo '{"error": "--interval invalid. Valid: 1m, 5m, 15m, 30m, 1h, 2h, 4h, 12h, 1d, 1w"}' >&2; exit 1
+    fi
+    if [[ -n "$local_exchange" ]] && [[ "$local_exchange" != "binance" ]] && [[ "$local_exchange" != "bybit" ]] && [[ "$local_exchange" != "coinbase" ]] && [[ "$local_exchange" != "kraken" ]]; then
+      echo '{"error": "--exchange invalid. Valid: binance, bybit, coinbase, kraken"}' >&2; exit 1
+    fi
+    local_qs="name=$(surf_urlencode "$local_name")"
+    local_qs="${local_qs}&symbol=$(surf_urlencode "$local_symbol")"
+    [[ -n "$local_interval" ]] && local_qs="${local_qs:+${local_qs}&}interval=$local_interval"
+    [[ -n "$local_exchange" ]] && local_qs="${local_qs:+${local_qs}&}exchange=$local_exchange"
+    surf_get "${API_PREFIX}/indicator" "$local_qs"
+    ;;
+
+  liquidation)
+    shift
+    local_symbol=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --symbol) local_symbol="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --symbol\"}" >&2; exit 1 ;;
+      esac
+    done
+    local_qs=""
+    [[ -n "$local_symbol" ]] && local_qs="${local_qs:+${local_qs}&}symbol=$local_symbol"
+    surf_get "${API_PREFIX}/liquidation" "$local_qs"
+    ;;
+
+  market-indicator)
+    shift
+    local_asset="" local_metric="" local_window="day" local_limit="30" local_exchange="all_exchange"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --asset) local_asset="$2"; shift 2 ;;
+        --metric) local_metric="$2"; shift 2 ;;
+        --window) local_window="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --exchange) local_exchange="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --asset, --metric, --window, --limit, --exchange\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_asset" ]]; then
+      echo '{"error": "--asset is required (e.g. btc, eth)"}' >&2; exit 1
+    fi
+    if [[ -z "$local_metric" ]]; then
+      echo '{"error": "--metric is required. Valid: nupl, sopr, mvrv, puell-multiple, nvm, nvt, nvt-golden-cross, rhodl-ratio, exchange-flows/inflow, exchange-flows/outflow, exchange-flows/netflow"}' >&2; exit 1
+    fi
+    if [[ -n "$local_metric" ]] && [[ "$local_metric" != "nupl" ]] && [[ "$local_metric" != "sopr" ]] && [[ "$local_metric" != "mvrv" ]] && [[ "$local_metric" != "puell-multiple" ]] && [[ "$local_metric" != "nvm" ]] && [[ "$local_metric" != "nvt" ]] && [[ "$local_metric" != "nvt-golden-cross" ]] && [[ "$local_metric" != "rhodl-ratio" ]] && [[ "$local_metric" != "exchange-flows/inflow" ]] && [[ "$local_metric" != "exchange-flows/outflow" ]] && [[ "$local_metric" != "exchange-flows/netflow" ]]; then
+      echo '{"error": "--metric invalid. Valid: nupl, sopr, mvrv, puell-multiple, nvm, nvt, nvt-golden-cross, rhodl-ratio, exchange-flows/inflow, exchange-flows/outflow, exchange-flows/netflow"}' >&2; exit 1
+    fi
+    if [[ -n "$local_window" ]] && [[ "$local_window" != "day" ]] && [[ "$local_window" != "block" ]]; then
+      echo '{"error": "--window invalid. Valid: day, block"}' >&2; exit 1
+    fi
+    local_qs="asset=$(surf_urlencode "$local_asset")"
+    local_qs="${local_qs}&metric=$(surf_urlencode "$local_metric")"
+    [[ -n "$local_window" ]] && local_qs="${local_qs:+${local_qs}&}window=$local_window"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_exchange" ]] && local_qs="${local_qs:+${local_qs}&}exchange=$local_exchange"
+    surf_get "${API_PREFIX}/market-indicator" "$local_qs"
+    ;;
+
+  options)
+    shift
+    local_symbol=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --symbol) local_symbol="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --symbol\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_symbol" ]]; then
+      echo '{"error": "--symbol is required (e.g. BTC, ETH)"}' >&2; exit 1
+    fi
+    local_qs="symbol=$(surf_urlencode "$local_symbol")"
+    surf_get "${API_PREFIX}/options" "$local_qs"
+    ;;
+
+  prediction)
+    shift
+    local_market_id=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --market-id) local_market_id="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --market-id\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_market_id" ]]; then
+      echo '{"error": "--market-id is required (hex string, e.g., 0x1234...)"}' >&2; exit 1
+    fi
+    surf_get "${API_PREFIX}/prediction/$(surf_urlencode "$local_market_id")"
+    ;;
+
+  prediction-detail)
+    shift
+    local_project_id=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --project-id) local_project_id="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --project-id\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_project_id" ]]; then
+      echo '{"error": "--project-id is required (e.g. bitcoin, ethereum, uniswap)"}' >&2; exit 1
+    fi
+    local_qs="project_id=$(surf_urlencode "$local_project_id")"
+    surf_get "${API_PREFIX}/prediction/detail" "$local_qs"
+    ;;
+
+  price)
+    shift
+    local_ids="" local_vs_currencies="usd" local_include_24hr_change="" local_include_market_cap=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --ids) local_ids="$2"; shift 2 ;;
+        --vs-currencies) local_vs_currencies="$2"; shift 2 ;;
+        --include-24hr-change) local_include_24hr_change="$2"; shift 2 ;;
+        --include-market-cap) local_include_market_cap="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --ids, --vs-currencies, --include-24hr-change, --include-market-cap\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_ids" ]]; then
+      echo '{"error": "--ids is required (e.g. bitcoin,ethereum,solana)"}' >&2; exit 1
+    fi
+    if [[ -n "$local_include_24hr_change" ]] && [[ "$local_include_24hr_change" != "true" ]] && [[ "$local_include_24hr_change" != "false" ]]; then
+      echo '{"error": "--include-24hr-change invalid. Valid: true, false"}' >&2; exit 1
+    fi
+    if [[ -n "$local_include_market_cap" ]] && [[ "$local_include_market_cap" != "true" ]] && [[ "$local_include_market_cap" != "false" ]]; then
+      echo '{"error": "--include-market-cap invalid. Valid: true, false"}' >&2; exit 1
+    fi
+    local_qs="ids=$(surf_urlencode "$local_ids")"
+    [[ -n "$local_vs_currencies" ]] && local_qs="${local_qs:+${local_qs}&}vs_currencies=$local_vs_currencies"
+    [[ -n "$local_include_24hr_change" ]] && local_qs="${local_qs:+${local_qs}&}include_24hr_change=$local_include_24hr_change"
+    [[ -n "$local_include_market_cap" ]] && local_qs="${local_qs:+${local_qs}&}include_market_cap=$local_include_market_cap"
+    surf_get "${API_PREFIX}/price" "$local_qs"
+    ;;
+
+  price-metrics)
+    shift
+    local_id="" local_days="30" local_vs_currency="usd"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --id) local_id="$2"; shift 2 ;;
+        --days) local_days="$2"; shift 2 ;;
+        --vs-currency) local_vs_currency="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --days, --vs-currency\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_id" ]]; then
+      echo '{"error": "--id is required (e.g. bitcoin, ethereum, solana)"}' >&2; exit 1
+    fi
+    if [[ -n "$local_days" ]] && [[ "$local_days" != "1" ]] && [[ "$local_days" != "7" ]] && [[ "$local_days" != "14" ]] && [[ "$local_days" != "30" ]] && [[ "$local_days" != "90" ]] && [[ "$local_days" != "180" ]] && [[ "$local_days" != "365" ]] && [[ "$local_days" != "max" ]]; then
+      echo '{"error": "--days invalid. Valid: 1, 7, 14, 30, 90, 180, 365, max"}' >&2; exit 1
+    fi
+    local_qs=""
+    [[ -n "$local_days" ]] && local_qs="${local_qs:+${local_qs}&}days=$local_days"
+    [[ -n "$local_vs_currency" ]] && local_qs="${local_qs:+${local_qs}&}vs_currency=$local_vs_currency"
+    surf_get "${API_PREFIX}/price/$(surf_urlencode "$local_id")/metrics" "$local_qs"
     ;;
 
   search)
     shift
-    query=$(build_query "$@")
-    surf_get "${API_PREFIX}/search" "$query"
+    local_query=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --query) local_query="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_query" ]]; then
+      echo '{"error": "--query is required (e.g. bitcoin, eth, sol)"}' >&2; exit 1
+    fi
+    local_qs="q=$(surf_urlencode "$local_query")"
+    surf_get "${API_PREFIX}/search" "$local_qs"
+    ;;
+
+  tge)
+    shift
+    local_status="upcoming"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --status) local_status="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --status\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -n "$local_status" ]] && [[ "$local_status" != "upcoming" ]] && [[ "$local_status" != "pre" ]] && [[ "$local_status" != "post" ]]; then
+      echo '{"error": "--status invalid. Valid: upcoming, pre, post"}' >&2; exit 1
+    fi
+    local_qs=""
+    [[ -n "$local_status" ]] && local_qs="${local_qs:+${local_qs}&}status=$local_status"
+    surf_get "${API_PREFIX}/tge" "$local_qs"
     ;;
 
   top)
     shift
-    query=$(build_query "$@")
-    surf_get "${API_PREFIX}/top" "$query"
+    local_metric=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --metric) local_metric="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --metric\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_metric" ]]; then
+      echo '{"error": "--metric is required. Valid: top_gainers, top_losers, market_overview, fear_greed, funding_rate, open_interest, liquidations, long_short_ratio"}' >&2; exit 1
+    fi
+    if [[ -n "$local_metric" ]] && [[ "$local_metric" != "top_gainers" ]] && [[ "$local_metric" != "top_losers" ]] && [[ "$local_metric" != "market_overview" ]] && [[ "$local_metric" != "fear_greed" ]] && [[ "$local_metric" != "funding_rate" ]] && [[ "$local_metric" != "open_interest" ]] && [[ "$local_metric" != "liquidations" ]] && [[ "$local_metric" != "long_short_ratio" ]]; then
+      echo '{"error": "--metric invalid. Valid: top_gainers, top_losers, market_overview, fear_greed, funding_rate, open_interest, liquidations, long_short_ratio"}' >&2; exit 1
+    fi
+    local_qs="metric=$(surf_urlencode "$local_metric")"
+    surf_get "${API_PREFIX}/top" "$local_qs"
     ;;
 
   trending)
     shift
-    surf_get "${API_PREFIX}/trending"
+    local_type="" local_limit="" local_offset=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --type) local_type="$2"; shift 2 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --type, --limit, --offset\"}" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$local_type" ]]; then
+      echo '{"error": "--type is required. Valid: general, dex, mindshare, smart_following"}' >&2; exit 1
+    fi
+    if [[ -n "$local_type" ]] && [[ "$local_type" != "general" ]] && [[ "$local_type" != "dex" ]] && [[ "$local_type" != "mindshare" ]] && [[ "$local_type" != "smart_following" ]]; then
+      echo '{"error": "--type invalid. Valid: general, dex, mindshare, smart_following"}' >&2; exit 1
+    fi
+    local_qs="type=$(surf_urlencode "$local_type")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
+    surf_get "${API_PREFIX}/trending" "$local_qs"
     ;;
 
-  *) echo "{\"error\": \"Unknown command: $1. Available: price, futures, options, liquidation, indicator, market-indicator, etf, volume, search, top, trending\"}" >&2; exit 1 ;;
+  volume)
+    shift
+    local_symbol=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --symbol) local_symbol="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --symbol\"}" >&2; exit 1 ;;
+      esac
+    done
+    local_qs=""
+    [[ -n "$local_symbol" ]] && local_qs="${local_qs:+${local_qs}&}symbol=$local_symbol"
+    surf_get "${API_PREFIX}/volume" "$local_qs"
+    ;;
+
+  *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;
 esac

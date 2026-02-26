@@ -6,31 +6,46 @@ surf-core is an Agent Skills repository following the [Agent Skills Open Standar
 
 ```
 surf-core/
-├── surf-login/           # ** PREREQUISITE ** — Google Sign-In, session management
-├── surf-hermod-api/      # API reference — fetch, cache, query OpenAPI specs (273 endpoints)
-├── surf-trading-data/    # Trading data (price, futures, options, liquidation, indicators)
-├── surf-wallet-data/     # Wallet data (balance, holdings, tx history, labels)
-├── surf-project-data/    # Project data (overview, TVL, revenue, fees, users)
-├── surf-token-data/      # Token data (holders, transfers, exchange flows)
-├── surf-news-data/       # News data (crypto news search with semantic ranking)
-├── surf-onchain-sql/     # OnchainSQL (ClickHouse on-chain data queries)
-├── surf-x-data/          # X/Twitter data (search, users, tweets)
-├── lib/                  # Shared shell utilities (config loader, HTTP wrapper)
+├── knowledge/            # Domain knowledge (endpoints, patterns, responses)
+│   ├── auth/             # Authentication & session docs
+│   ├── market/           # Market data (prices, futures, options, indicators, ETF)
+│   ├── project/          # Project data (overview, TVL, revenue, fees, users)
+│   ├── token/            # Token data (holders, transfers, exchange flows)
+│   ├── wallet/           # Wallet data (balance, holdings, tx history, labels)
+│   ├── social/           # Social & X/Twitter data (sentiment, users, tweets)
+│   ├── news/             # News data (search, feed, AI summaries)
+│   ├── web/              # Web data (search, fetch)
+│   └── onchain/          # On-chain SQL (ClickHouse databases, examples)
+├── runtimes/             # Executable skill implementations
+│   ├── cli/              # Bash CLI skills
+│   │   ├── lib/          # Shared shell utilities (config.sh, http.sh)
+│   │   ├── login/        # Google Sign-In, session management
+│   │   ├── hermod-api/   # API reference — query OpenAPI specs (273 endpoints)
+│   │   ├── market/       # Market data (prices, charts, exchanges)
+│   │   ├── news/         # News search with semantic ranking
+│   │   ├── onchain/      # OnchainSQL (ClickHouse on-chain queries)
+│   │   ├── project/      # Project data (overview, TVL, revenue, fees)
+│   │   ├── token/        # Token data (holders, transfers, exchange flows)
+│   │   ├── wallet/       # Wallet data (balance, holdings, tx history)
+│   │   └── social/       # Social & X/Twitter data (search, users, tweets)
+│   └── http/             # HTTP-based skill implementations
+│       └── market/       # Market data via HTTP
 ├── CLAUDE.md
-└── README.md
+├── README.md
+└── SKILL-SPEC.md
 ```
 
 ## Getting Started
 
 ```bash
 # 1. Login (opens browser, one-click Google Sign-In)
-surf-login/scripts/surf-session login
+runtimes/cli/login/scripts/surf-session login
 
 # 2. Verify connectivity
-surf-login/scripts/surf-session check
+runtimes/cli/login/scripts/surf-session check
 
 # 3. Use any data skill
-surf-trading-data/scripts/surf-trading price --ids bitcoin --vs usd
+runtimes/cli/market/scripts/surf-market price --ids bitcoin --vs usd
 ```
 
 Session persists to `~/.surf-core/session.json` (access_token 1h + refresh_token 30d). Login once, use for 30 days.
@@ -52,8 +67,8 @@ Run the checklist in `SKILL-SPEC.md` before merging any skill PR.
 ## CLI Convention
 
 ```bash
-<skill>/scripts/<cmd> --check-setup       # Verify config
-<skill>/scripts/<cmd> <subcommand> [args]  # Execute
+runtimes/cli/<skill>/scripts/<cmd> --check-setup       # Verify config
+runtimes/cli/<skill>/scripts/<cmd> <subcommand> [args]  # Execute
 ```
 
 All output is JSON. Errors return `{"error": "..."}` with non-zero exit code.
@@ -62,17 +77,18 @@ All output is JSON. Errors return `{"error": "..."}` with non-zero exit code.
 
 All data flows through Hermod (`/gateway/v1/`). Auth: `Authorization: Bearer <token>`.
 
-### Semantic API Routes
+### Standard API Routes
 
 | Domain | Path Prefix | Credit Cost |
 |--------|-------------|-------------|
-| Trading Data | `/gateway/v1/trading-data/` | 1 |
-| Project Data | `/gateway/v1/project/` | 1 |
-| Wallet Data | `/gateway/v1/wallet/` | 1-2 |
-| Token Data | `/gateway/v1/token-data/` | 1 |
-| News Data | `/gateway/v1/news/search` | 1 |
-| OnchainSQL | `/gateway/v1/onchain/query` | 5 |
-| X/Twitter | `/gateway/v1/x/` | 2-3 |
+| Market | `/gateway/v1/market/` | 1 |
+| Project | `/gateway/v1/project/` | 1 |
+| Token | `/gateway/v1/token/` | 1 |
+| Wallet | `/gateway/v1/wallet/` | 1-2 |
+| Social | `/gateway/v1/social/` | 1 |
+| News | `/gateway/v1/news/` | 1 |
+| Web | `/gateway/v1/web/` | 1 |
+| Onchain | `/gateway/v1/onchain/` | 5 |
 
 ### Proxy API Routes
 
@@ -92,11 +108,11 @@ Proxy routes forward to upstream APIs with automatic API key injection: `/gatewa
 | solscan | Solscan Pro | 4 | Solana txs, tokens, accounts |
 | alchemy-* | Alchemy (eth/base/arb/opt/polygon/solana) | 1 | JSON-RPC, token balances |
 
-### API Reference (surf-hermod-api)
+### API Reference (hermod-api)
 
 ```bash
-surf-hermod-api/scripts/surf-api sync              # Fetch latest specs → ~/.surf-core/api-docs/
-surf-hermod-api/scripts/surf-api endpoints trading  # List trading endpoints
-surf-hermod-api/scripts/surf-api show /wallet/balance  # Full params + curl example
-surf-hermod-api/scripts/surf-api search holders     # Search across all 273 endpoints
+runtimes/cli/hermod-api/scripts/surf-api sync              # Fetch latest specs → ~/.surf-core/api-docs/
+runtimes/cli/hermod-api/scripts/surf-api endpoints trading  # List trading endpoints
+runtimes/cli/hermod-api/scripts/surf-api show /wallet/balance  # Full params + curl example
+runtimes/cli/hermod-api/scripts/surf-api search holders     # Search across all 273 endpoints
 ```
