@@ -48,30 +48,36 @@ print(d.get('exp', 0))
   if [[ "$_surf_exp" -gt 0 && $((_surf_exp - _surf_now)) -le 300 ]]; then
     _surf_refresh=$(_surf_read_field "refresh_token")
     if [[ -n "$_surf_refresh" ]]; then
-      _surf_raw=$(curl -s --max-time 10 -X POST \
+      _surf_raw=$(curl -s --max-time 10 -w "\n%{http_code}" -X POST \
         -H "Content-Type: application/json" \
         -H "Accept: application/json" \
         -d "{\"refresh_token\": \"$_surf_refresh\"}" \
         "${MUNINN_URL}/v2/auth/refresh" 2>/dev/null) || _surf_raw=""
       if [[ -n "$_surf_raw" ]]; then
-        _surf_new_token=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('access_token',''))" <<< "$_surf_raw" 2>/dev/null) || _surf_new_token=""
-        if [[ -n "$_surf_new_token" ]]; then
-          _surf_new_refresh=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('refresh_token',''))" <<< "$_surf_raw" 2>/dev/null) || _surf_new_refresh=""
-          : "${_surf_new_refresh:=$_surf_refresh}"
-          HERMOD_TOKEN="$_surf_new_token"
-          # Update session file
-          python3 -c "
+        _surf_refresh_code=$(echo "$_surf_raw" | tail -1)
+        _surf_refresh_body=$(echo "$_surf_raw" | sed '$d')
+        if [[ "$_surf_refresh_code" -lt 400 ]]; then
+          _surf_new_token=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('access_token',''))" <<< "$_surf_refresh_body" 2>/dev/null) || _surf_new_token=""
+          if [[ -n "$_surf_new_token" ]]; then
+            _surf_new_refresh=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('refresh_token',''))" <<< "$_surf_refresh_body" 2>/dev/null) || _surf_new_refresh=""
+            : "${_surf_new_refresh:=$_surf_refresh}"
+            HERMOD_TOKEN="$_surf_new_token"
+            # Update session file
+            python3 -c "
 import json, sys
 data = {'hermod_url': sys.argv[1], 'hermod_token': sys.argv[2], 'access_token': sys.argv[2], 'refresh_token': sys.argv[3]}
 with open(sys.argv[4], 'w') as f:
     json.dump(data, f, indent=2)
 " "$HERMOD_URL" "$_surf_new_token" "$_surf_new_refresh" "$SURF_SESSION_FILE" 2>/dev/null
-          echo '{"auto_refresh": true, "message": "Access token refreshed automatically."}' >&2
+            echo '{"auto_refresh": true, "message": "Access token refreshed automatically."}' >&2
+          fi
+        else
+          echo "{\"auto_refresh\": false, \"error\": \"Refresh token rejected (HTTP $_surf_refresh_code). Run: surf-session login\"}" >&2
         fi
       fi
     fi
   fi
-  unset _surf_exp _surf_now _surf_refresh _surf_raw _surf_new_token _surf_new_refresh
+  unset _surf_exp _surf_now _surf_refresh _surf_raw _surf_new_token _surf_new_refresh _surf_refresh_code _surf_refresh_body
 fi
 
 # Validate configuration
