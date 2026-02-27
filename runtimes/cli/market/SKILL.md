@@ -15,7 +15,7 @@ Real-time crypto market data: spot prices, 14 technical indicators, futures/opti
 | `price` | Spot prices for any crypto assets | 1 credit |
 | `price-metrics` | Price time-series (charts) over N days | 1 credit |
 | `indicator` | Technical indicators (RSI, MACD, EMA, BBands, etc.) | 1 credit |
-| `top` | Market rankings: gainers, losers, fear/greed, funding, OI, liquidations | 1 credit |
+| `top` | Market rankings: market_cap, gainers, losers, fear/greed, funding, OI, liquidations | 1 credit |
 | `futures` | Futures OI, funding rates, long/short ratios | 1 credit |
 | `options` | Options OI by exchange | 1 credit |
 | `liquidation` | Liquidation data (1h/4h/12h/24h, long vs short) | 1 credit |
@@ -25,8 +25,8 @@ Real-time crypto market data: spot prices, 14 technical indicators, futures/opti
 | `trending` | Trending coins (general, DEX, mindshare, smart money) | 1 credit |
 | `search` | Search for any crypto asset by name | 1 credit |
 | `tge` | Upcoming Token Generation Events | 1 credit |
-| `prediction` | Prediction market data | 1 credit |
-| `prediction-detail` | Prediction market detail for a project | 1 credit |
+| `prediction` | Prediction market data (by market_id query param) | 1 credit |
+| `prediction-detail` | Prediction market detail (by --id or --q entity) | 1 credit |
 
 ## Common Tasks
 
@@ -140,17 +140,17 @@ surf-market market-indicator --asset btc --metric exchange-flows/netflow --windo
 ### Task: Find trending coins and narratives
 Discover what's gaining attention and smart money interest.
 ```bash
-# General trending coins
-surf-market trending --type general --limit 10
+# General trending coins (fixed limit of 10, --limit not supported)
+surf-market trending --type general
 
 # Trending on DEXes (early signals)
-surf-market trending --type dex --limit 10
+surf-market trending --type dex
 
 # Mindshare trending (social attention)
-surf-market trending --type mindshare --limit 10
+surf-market trending --type mindshare
 
 # Smart money following
-surf-market trending --type smart_following --limit 10
+surf-market trending --type smart_following
 ```
 **Available types:** general, dex, mindshare, smart_following
 

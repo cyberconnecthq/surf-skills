@@ -19,13 +19,13 @@ usage() {
 {"usage": {
   "command": "surf-social",
   "subcommands": {
-    "follower-geo": {"args": "--handle vitalikbuterin", "description": "Get follower geography (1 credit)"},
-    "search": {"args": "--query bitcoin [--limit 20]", "description": "Search social content (1 credit)"},
-    "sentiment": {"args": "--id ethereum", "description": "Get sentiment analysis (1 credit)"},
+    "follower-geo": {"args": "--q bitcoin | --id <id> | --handle cz_binance", "description": "Get follower geography (1 credit)"},
+    "search": {"args": "--query bitcoin [--limit 20] [--offset 0]", "description": "Search social content (1 credit)"},
+    "sentiment": {"args": "--id ethereum | --q ethereum", "description": "Get sentiment analysis (1 credit)"},
     "top": {"args": "--metric trending [--limit 20] [--offset 0]", "description": "Get top social content (1 credit)"},
     "tweets": {"args": "", "description": "Get tweets by IDs (1 credit)"},
     "user": {"args": "--handle vitalikbuterin", "description": "Get social user profile (1 credit)"},
-    "user-posts": {"args": "--handle vitalikbuterin [--limit 20]", "description": "Get user posts (1 credit)"},
+    "user-posts": {"args": "--handle vitalikbuterin [--limit 20] [--offset 0]", "description": "Get user posts (1 credit)"},
     "user-related": {"args": "--handle vitalikbuterin", "description": "Get related accounts (1 credit)"},
     "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
@@ -40,28 +40,38 @@ case "${1:---help}" in
 
   follower-geo)
     shift
-    local_handle=""
+    local_id="" local_q="" local_handle=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
+        --id) local_id="$2"; shift 2 ;;
+        --q) local_q="$2"; shift 2 ;;
         --handle) local_handle="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --handle\"}" >&2; exit 1 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q, --handle\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_handle" ]]; then
-      echo '{"error": "--handle is required (e.g. bitcoin, cz_binance)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" && -z "$local_handle" ]]; then
+      echo '{"error": "--id, --q, or --handle is required (e.g. --q bitcoin, --handle cz_binance)"}' >&2; exit 1
     fi
-    local_qs="handle=$(surf_urlencode "$local_handle")"
+    local_qs=""
+    if [[ -n "$local_id" ]]; then
+      local_qs="id=$(surf_urlencode "$local_id")"
+    elif [[ -n "$local_q" ]]; then
+      local_qs="q=$(surf_urlencode "$local_q")"
+    else
+      local_qs="handle=$(surf_urlencode "$local_handle")"
+    fi
     surf_get "${API_PREFIX}/follower-geo" "$local_qs"
     ;;
 
   search)
     shift
-    local_query="" local_limit="20"
+    local_query="" local_limit="20" local_offset="0"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --query) local_query="$2"; shift 2 ;;
         --limit) local_limit="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query, --limit\"}" >&2; exit 1 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query, --limit, --offset\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_query" ]]; then
@@ -69,22 +79,29 @@ case "${1:---help}" in
     fi
     local_qs="q=$(surf_urlencode "$local_query")"
     [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
     surf_get "${API_PREFIX}/search" "$local_qs"
     ;;
 
   sentiment)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. bitcoin, uniswap, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "--id or --q is required (e.g. bitcoin, uniswap, ethereum)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=""
+    if [[ -n "$local_id" ]]; then
+      local_qs="id=$(surf_urlencode "$local_id")"
+    else
+      local_qs="q=$(surf_urlencode "$local_q")"
+    fi
     surf_get "${API_PREFIX}/sentiment" "$local_qs"
     ;;
 
@@ -117,7 +134,7 @@ case "${1:---help}" in
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --ids) local_ids="$2"; shift 2 ;;
-        *) echo '{"error": "Unknown flag: $1. Valid: --ids"}' >&2; exit 1 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --ids\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_ids" ]]; then
@@ -138,25 +155,28 @@ case "${1:---help}" in
     if [[ -z "$local_handle" ]]; then
       echo '{"error": "--handle is required (e.g. cz_binance, vitalikbuterin)"}' >&2; exit 1
     fi
-    surf_get "${API_PREFIX}/user/$(surf_urlencode "$local_handle")"
+    local_qs="handle=$(surf_urlencode "$local_handle")"
+    surf_get "${API_PREFIX}/user" "$local_qs"
     ;;
 
   user-posts)
     shift
-    local_handle="" local_limit="20"
+    local_handle="" local_limit="20" local_offset="0"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --handle) local_handle="$2"; shift 2 ;;
         --limit) local_limit="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --handle, --limit\"}" >&2; exit 1 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --handle, --limit, --offset\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_handle" ]]; then
       echo '{"error": "--handle is required (e.g. cz_binance)"}' >&2; exit 1
     fi
-    local_qs=""
+    local_qs="handle=$(surf_urlencode "$local_handle")"
     [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
-    surf_get "${API_PREFIX}/user/$(surf_urlencode "$local_handle")/posts" "$local_qs"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
+    surf_get "${API_PREFIX}/user/posts" "$local_qs"
     ;;
 
   user-related)
@@ -171,7 +191,8 @@ case "${1:---help}" in
     if [[ -z "$local_handle" ]]; then
       echo '{"error": "--handle is required (e.g. cz_binance)"}' >&2; exit 1
     fi
-    surf_get "${API_PREFIX}/user/$(surf_urlencode "$local_handle")/related"
+    local_qs="handle=$(surf_urlencode "$local_handle")"
+    surf_get "${API_PREFIX}/user/related" "$local_qs"
     ;;
 
   *) echo "{\"error\": \"Unknown command: $1. Available: ${ALL_COMMANDS}\"}" >&2; exit 1 ;;

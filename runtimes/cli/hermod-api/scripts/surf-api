@@ -7,14 +7,14 @@ set -euo pipefail
 # Resolve symlinks so ../../lib/ works even when installed via `npx skills add`
 _resolve_path() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1" 2>/dev/null || echo "$1"; }
 SCRIPT_DIR="$(cd "$(dirname "$(_resolve_path "${BASH_SOURCE[0]}")")" && pwd)"
-SURF_CORE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
 # Source config (loads HERMOD_URL + HERMOD_TOKEN from session)
-source "$SURF_CORE_ROOT/lib/config.sh"
+source "$SCRIPT_DIR/../../lib/config.sh"
 
 # Detect monorepo root (surf-core lives inside surf-v2-mono)
+# SURF_CORE_ROOT is set by config.sh (points to runtimes/cli/), go up 2 more levels
+SURF_CORE_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 MONOREPO_ROOT=""
-if [[ -d "$SURF_CORE_ROOT/../hermod/docs" ]]; then
+if [[ -d "$SURF_CORE_ROOT/../hermod" ]]; then
   MONOREPO_ROOT="$(cd "$SURF_CORE_ROOT/.." && pwd)"
 fi
 
@@ -25,19 +25,19 @@ usage() {
 {"usage": {
   "command": "surf-api",
   "subcommands": {
-    "sync":      {"args": "", "description": "Fetch OpenAPI specs from Hermod API + monorepo, save to ~/.surf-core/api-docs/"},
-    "endpoints": {"args": "[CATEGORY]", "description": "List endpoints. Category: semantic, proxy, trading, wallet, token, project, x, onchain, coingecko, ..."},
-    "show":      {"args": "<path>", "description": "Show endpoint details + curl example. e.g. show /trading-data/price"},
+    "sync":      {"args": "", "description": "Fetch Swagger spec from Hermod live API (or monorepo fallback), save to ~/.surf-core/api-docs/"},
+    "endpoints": {"args": "[CATEGORY]", "description": "List endpoints. Category: market, wallet, token, project, social, news, web, onchain, ..."},
+    "show":      {"args": "<path>", "description": "Show endpoint details + curl example. e.g. show /market/price"},
     "search":    {"args": "<query>", "description": "Search endpoints by keyword. e.g. search bitcoin, search holders"},
     "status":    {"args": "", "description": "Show sync status, file locations, last sync time"},
     "--check-setup": {"args": "", "description": "Verify configuration"}
   },
   "examples": [
     "surf-api sync",
-    "surf-api endpoints trading",
-    "surf-api show /trading-data/price",
+    "surf-api endpoints market",
+    "surf-api show /market/price",
     "surf-api search holders",
-    "surf-api endpoints proxy | python3 -c \"import json,sys; [print(e['method'], e['path']) for e in json.load(sys.stdin)['endpoints']]\""
+    "surf-api endpoints | python3 -c \"import json,sys; [print(e['method'], e['path']) for e in json.load(sys.stdin)['endpoints']]\""
   ],
   "storage": "~/.surf-core/api-docs/"
 }}
@@ -57,7 +57,7 @@ case "${1:---help}" in
   show)
     shift
     if [[ -z "${1:-}" ]]; then
-      echo '{"error": "Usage: surf-api show <path>. Example: surf-api show /trading-data/price"}' >&2
+      echo '{"error": "Usage: surf-api show <path>. Example: surf-api show /market/price"}' >&2
       exit 1
     fi
     python3 "$QUERY_PY" show "$1" ;;

@@ -23,12 +23,12 @@ usage() {
     "history": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth] [--limit 20] [--offset 0]", "description": "Get wallet transaction history (1 credit)"},
     "labels": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", "description": "Get wallet labels (1 credit)"},
     "labels-batch": {"args": "", "description": "Batch get wallet labels (1 credit)"},
-    "nft": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth] [--limit 20]", "description": "Get wallet NFTs (1 credit)"},
+    "nft": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth] [--limit 20] [--offset 0]", "description": "Get wallet NFTs (1 credit)"},
     "pnl": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", "description": "Get wallet PnL (1 credit)"},
-    "search": {"args": "--query bitcoin", "description": "Search wallets (1 credit)"},
-    "tokens": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth]", "description": "Get wallet token holdings (1 credit)"},
+    "search": {"args": "--query bitcoin [--limit 20] [--offset 0]", "description": "Search wallets (1 credit)"},
+    "tokens": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth] [--limit 20] [--offset 0]", "description": "Get wallet token holdings (1 credit)"},
     "top": {"args": "--metric balance [--limit 20] [--offset 0]", "description": "Get top/ranked wallets (1 credit)"},
-    "transfers": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth] [--limit 20]", "description": "Get wallet transfers (1 credit)"},
+    "transfers": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth] [--limit 20] [--offset 0]", "description": "Get wallet transfers (1 credit)"},
     "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -114,13 +114,14 @@ case "${1:---help}" in
 
   nft)
     shift
-    local_address="" local_chain="eth" local_limit="20"
+    local_address="" local_chain="eth" local_limit="20" local_offset="0"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --address) local_address="$2"; shift 2 ;;
         --chain) local_chain="$2"; shift 2 ;;
         --limit) local_limit="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit\"}" >&2; exit 1 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit, --offset\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_address" ]]; then
@@ -132,6 +133,7 @@ case "${1:---help}" in
     local_qs="address=$(surf_urlencode "$local_address")"
     [[ -n "$local_chain" ]] && local_qs="${local_qs:+${local_qs}&}chain=$local_chain"
     [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
     surf_get "${API_PREFIX}/nft" "$local_qs"
     ;;
 
@@ -153,28 +155,34 @@ case "${1:---help}" in
 
   search)
     shift
-    local_query=""
+    local_query="" local_limit="20" local_offset="0"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --query) local_query="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query\"}" >&2; exit 1 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --query, --limit, --offset\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_query" ]]; then
       echo '{"error": "--query is required (e.g. binance)"}' >&2; exit 1
     fi
     local_qs="q=$(surf_urlencode "$local_query")"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
     surf_get "${API_PREFIX}/search" "$local_qs"
     ;;
 
   tokens)
     shift
-    local_address="" local_chain=""
+    local_address="" local_chain="" local_limit="20" local_offset="0"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --address) local_address="$2"; shift 2 ;;
         --chain) local_chain="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain\"}" >&2; exit 1 ;;
+        --limit) local_limit="$2"; shift 2 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit, --offset\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_address" ]]; then
@@ -185,6 +193,8 @@ case "${1:---help}" in
     fi
     local_qs="address=$(surf_urlencode "$local_address")"
     [[ -n "$local_chain" ]] && local_qs="${local_qs:+${local_qs}&}chain=$local_chain"
+    [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
     surf_get "${API_PREFIX}/tokens" "$local_qs"
     ;;
 
@@ -213,13 +223,14 @@ case "${1:---help}" in
 
   transfers)
     shift
-    local_address="" local_chain="eth" local_limit="20"
+    local_address="" local_chain="eth" local_limit="20" local_offset="0"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --address) local_address="$2"; shift 2 ;;
         --chain) local_chain="$2"; shift 2 ;;
         --limit) local_limit="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit\"}" >&2; exit 1 ;;
+        --offset) local_offset="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --address, --chain, --limit, --offset\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_address" ]]; then
@@ -231,6 +242,7 @@ case "${1:---help}" in
     local_qs="address=$(surf_urlencode "$local_address")"
     [[ -n "$local_chain" ]] && local_qs="${local_qs:+${local_qs}&}chain=$local_chain"
     [[ -n "$local_limit" ]] && local_qs="${local_qs:+${local_qs}&}limit=$local_limit"
+    [[ -n "$local_offset" ]] && local_qs="${local_qs:+${local_qs}&}offset=$local_offset"
     surf_get "${API_PREFIX}/transfers" "$local_qs"
     ;;
 

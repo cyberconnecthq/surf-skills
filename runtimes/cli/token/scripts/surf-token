@@ -21,12 +21,12 @@ usage() {
   "subcommands": {
     "holders": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain eth [--limit 20] [--offset 0]", "description": "Get token holders (1 credit)"},
     "info": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 [--chain eth]", "description": "Get token metadata (1 credit)"},
-    "metrics": {"args": "--asset btc --metric exchange_flow [--window day] [--limit 30] [--exchange all_exchange] [--type us-btc-spot]", "description": "Get token time-series metrics (1 credit)"},
+    "metrics": {"args": "--asset btc --metric exchange_flow [--window day] [--limit 20] [--exchange all_exchange] [--type us-btc-spot]", "description": "Get token time-series metrics (1 credit). --asset valid: btc, eth. --exchange valid: all_exchange, spot_exchange, derivative_exchange, binance, bybit, kraken, okx"},
     "search": {"args": "--query bitcoin", "description": "Search tokens (1 credit)"},
     "top": {"args": "--metric volume [--limit 20] [--offset 0]", "description": "Get top/ranked tokens (1 credit)"},
     "top-traders": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", "description": "Get top traders for a token (1 credit)"},
     "transfers": {"args": "--address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 --chain eth [--limit 20] [--sort desc]", "description": "Get token transfers (1 credit)"},
-    "unlock": {"args": "--id ethereum [--timeframe 7d]", "description": "Get token unlock schedule (1 credit)"},
+    "unlock": {"args": "--id ethereum [--timeframe 7d]", "description": "Get token unlock schedule (1 credit). --timeframe valid: 7d, 1m, 1y, all"},
     "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -89,7 +89,7 @@ case "${1:---help}" in
 
   metrics)
     shift
-    local_asset="" local_metric="" local_window="day" local_limit="30" local_exchange="all_exchange" local_type="us-btc-spot"
+    local_asset="" local_metric="" local_window="day" local_limit="20" local_exchange="all_exchange" local_type="us-btc-spot"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --asset) local_asset="$2"; shift 2 ;;
@@ -102,7 +102,10 @@ case "${1:---help}" in
       esac
     done
     if [[ -z "$local_asset" ]]; then
-      echo '{"error": "--asset is required (e.g. btc)"}' >&2; exit 1
+      echo '{"error": "--asset is required (e.g. btc). Valid: btc, eth"}' >&2; exit 1
+    fi
+    if [[ "$local_asset" != "btc" ]] && [[ "$local_asset" != "eth" ]]; then
+      echo '{"error": "--asset invalid. Valid: btc, eth"}' >&2; exit 1
     fi
     if [[ -z "$local_metric" ]]; then
       echo '{"error": "--metric is required. Valid: exchange_flow, etf_flow, exchange_reserve"}' >&2; exit 1
@@ -115,6 +118,9 @@ case "${1:---help}" in
     fi
     if [[ -n "$local_type" ]] && [[ "$local_type" != "us-btc-spot" ]] && [[ "$local_type" != "us-eth-spot" ]]; then
       echo '{"error": "--type invalid. Valid: us-btc-spot, us-eth-spot"}' >&2; exit 1
+    fi
+    if [[ -n "$local_exchange" ]] && [[ "$local_exchange" != "all_exchange" ]] && [[ "$local_exchange" != "spot_exchange" ]] && [[ "$local_exchange" != "derivative_exchange" ]] && [[ "$local_exchange" != "binance" ]] && [[ "$local_exchange" != "bybit" ]] && [[ "$local_exchange" != "kraken" ]] && [[ "$local_exchange" != "okx" ]]; then
+      echo '{"error": "--exchange invalid. Valid: all_exchange, spot_exchange, derivative_exchange, binance, bybit, kraken, okx"}' >&2; exit 1
     fi
     local_qs="asset=$(surf_urlencode "$local_asset")"
     local_qs="${local_qs}&metric=$(surf_urlencode "$local_metric")"
@@ -223,6 +229,9 @@ case "${1:---help}" in
     done
     if [[ -z "$local_id" ]]; then
       echo '{"error": "--id is required (e.g. arbitrum)"}' >&2; exit 1
+    fi
+    if [[ -n "$local_timeframe" ]] && [[ "$local_timeframe" != "7d" ]] && [[ "$local_timeframe" != "1m" ]] && [[ "$local_timeframe" != "1y" ]] && [[ "$local_timeframe" != "all" ]]; then
+      echo '{"error": "--timeframe invalid. Valid: 7d, 1m, 1y, all"}' >&2; exit 1
     fi
     local_qs="id=$(surf_urlencode "$local_id")"
     [[ -n "$local_timeframe" ]] && local_qs="${local_qs:+${local_qs}&}timeframe=$local_timeframe"

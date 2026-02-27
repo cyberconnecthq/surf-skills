@@ -13,14 +13,14 @@ Query wallet balances, token holdings, transaction history, transfers, PnL, labe
 | Command | Description | Key Params | Cost |
 |---------|-------------|------------|------|
 | `balance` | Total USD balance across chains | `--address` | 1 |
-| `tokens` | Token holdings with prices | `--address`, `--chain` | 1 |
+| `tokens` | Token holdings with prices | `--address`, `--chain`, `--limit`, `--offset` | 1 |
 | `transfers` | Recent token transfers | `--address`, `--chain`, `--limit` | 1 |
 | `history` | Full transaction history | `--address`, `--chain`, `--limit` | 1 |
 | `labels` | Wallet identity labels | `--address` | 1 |
 | `labels-batch` | Batch label lookup | `--addresses` (JSON array) | 1 |
 | `pnl` | Realized + unrealized PnL | `--address` | 1 |
 | `nft` | NFT holdings | `--address`, `--chain`, `--limit` | 1 |
-| `search` | Search wallets by name/ENS | `--query` | 1 |
+| `search` | Search wallets by name/ENS | `--query`, `--limit`, `--offset` | 1 |
 | `top` | Ranked wallets by metric | `--metric`, `--limit` | 1 |
 
 ## Common Tasks

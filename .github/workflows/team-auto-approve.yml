@@ -1,0 +1,23 @@
+name: Team Auto Approve
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Approve
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+        run: |
+          # Check if Token exists (prevent configuration errors)
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Error: No available Token found. Please ensure secrets.AUTO_APPROVE_TOKEN is set."
+            exit 1
+          fi
+
+          # Execute approval
+          echo "Approving PR #${{ github.event.pull_request.number }}..."
+          gh pr review ${{ github.event.pull_request.html_url }} --approve --body "🚀 Auto-approved via Team Bot Action."

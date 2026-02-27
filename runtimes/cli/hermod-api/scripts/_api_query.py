@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Query engine for Hermod OpenAPI specs.
 
-Fetches, caches, and queries both Semantic API (Swagger 2.0) and
-Proxy API (OpenAPI 3.0) specs from the Hermod gateway.
+Fetches, caches, and queries the Hermod Swagger spec.
+Primary source: live Hermod API at /v1/docs/swagger/doc.json
+Fallback: monorepo file at hermod/docs/hermod/Hermod_swagger.json
 
 Storage: ~/.surf-core/api-docs/
 """
@@ -16,7 +17,6 @@ from pathlib import Path
 
 API_DOCS_DIR = Path.home() / ".surf-core" / "api-docs"
 SEMANTIC_FILE = API_DOCS_DIR / "semantic-swagger.json"
-PROXY_FILE = API_DOCS_DIR / "proxy-openapi.json"
 REFERENCE_FILE = API_DOCS_DIR / "semantic-api-reference.md"
 SYNC_META = API_DOCS_DIR / "sync_meta.json"
 
@@ -27,38 +27,53 @@ SYNC_META = API_DOCS_DIR / "sync_meta.json"
 
 
 def sync(hermod_url, hermod_token, monorepo_root=None):
-    """Fetch OpenAPI specs and save locally."""
+    """Fetch Swagger spec from live API or monorepo fallback."""
     API_DOCS_DIR.mkdir(parents=True, exist_ok=True)
     results = {}
 
-    # 1. Proxy OpenAPI from live API
-    if hermod_url and hermod_token:
+    # Clean up stale proxy file from old sync
+    stale_proxy = API_DOCS_DIR / "proxy-openapi.json"
+    if stale_proxy.exists():
+        stale_proxy.unlink()
+
+    swagger_synced = False
+
+    # 1. Primary: fetch live Swagger from Hermod API (no auth needed)
+    if hermod_url:
         try:
             r = subprocess.run(
                 [
                     "curl", "-s", "--max-time", "30",
-                    "-H", f"Authorization: Bearer {hermod_token}",
-                    f"{hermod_url}/v1/docs/proxy-openapi.json",
+                    "-w", "\n%{http_code}",
+                    f"{hermod_url}/v1/docs/swagger/doc.json",
                 ],
                 capture_output=True, text=True,
             )
             if r.returncode == 0 and r.stdout.strip():
-                data = json.loads(r.stdout)
-                if "paths" in data:
-                    PROXY_FILE.write_text(json.dumps(data, indent=2))
-                    results["proxy"] = {
-                        "status": "ok",
-                        "endpoints": len(data["paths"]),
-                        "source": "api",
+                lines = r.stdout.rstrip().rsplit("\n", 1)
+                body = lines[0] if len(lines) == 2 else r.stdout
+                http_code = int(lines[1]) if len(lines) == 2 else 0
+
+                if 200 <= http_code < 400:
+                    data = json.loads(body)
+                    if "paths" in data:
+                        SEMANTIC_FILE.write_text(json.dumps(data, indent=2))
+                        results["swagger"] = {
+                            "status": "ok",
+                            "endpoints": len(data["paths"]),
+                            "source": "live_api",
+                        }
+                        swagger_synced = True
+                else:
+                    results["swagger_live"] = {
+                        "status": "failed",
+                        "error": f"HTTP {http_code}",
                     }
         except Exception as e:
-            results["proxy"] = {"status": "failed", "error": str(e)}
-    else:
-        results["proxy"] = {"status": "skipped", "reason": "no session"}
+            results["swagger_live"] = {"status": "failed", "error": str(e)}
 
-    # 2. Semantic Swagger from monorepo
-    semantic_found = False
-    if monorepo_root:
+    # 2. Fallback: copy Swagger from monorepo filesystem
+    if not swagger_synced and monorepo_root:
         swagger_path = (
             Path(monorepo_root)
             / "hermod"
@@ -69,17 +84,20 @@ def sync(hermod_url, hermod_token, monorepo_root=None):
         if swagger_path.exists():
             data = json.loads(swagger_path.read_text())
             SEMANTIC_FILE.write_text(json.dumps(data, indent=2))
-            results["semantic"] = {
+            results["swagger"] = {
                 "status": "ok",
                 "endpoints": len(data.get("paths", {})),
                 "source": "monorepo",
             }
-            semantic_found = True
+            swagger_synced = True
 
-    if not semantic_found:
-        results["semantic"] = {"status": "skipped", "reason": "monorepo not found"}
+    if not swagger_synced:
+        results["swagger"] = {
+            "status": "failed",
+            "error": "Could not fetch from live API or monorepo",
+        }
 
-    # 3. Semantic API reference markdown
+    # 3. Copy API reference markdown from monorepo (if available)
     if monorepo_root:
         ref_path = Path(monorepo_root) / "hermod" / "docs" / "semantic-api-reference.md"
         if ref_path.exists():
@@ -92,8 +110,7 @@ def sync(hermod_url, hermod_token, monorepo_root=None):
         "hermod_url": hermod_url,
         "api_docs_dir": str(API_DOCS_DIR),
         "files": {
-            "proxy_openapi": str(PROXY_FILE) if PROXY_FILE.exists() else None,
-            "semantic_swagger": str(SEMANTIC_FILE) if SEMANTIC_FILE.exists() else None,
+            "swagger": str(SEMANTIC_FILE) if SEMANTIC_FILE.exists() else None,
             "reference_md": str(REFERENCE_FILE) if REFERENCE_FILE.exists() else None,
         },
         "results": results,
@@ -111,8 +128,6 @@ def _load_specs():
     specs = {}
     if SEMANTIC_FILE.exists():
         specs["semantic"] = json.loads(SEMANTIC_FILE.read_text())
-    if PROXY_FILE.exists():
-        specs["proxy"] = json.loads(PROXY_FILE.read_text())
     return specs
 
 
@@ -174,16 +189,13 @@ def endpoints(category=None, compact=False):
     # Filter by category keyword
     if category:
         cl = category.lower()
-        if cl in ("semantic", "proxy"):
-            result = [e for e in result if e["source"] == cl]
-        else:
-            result = [
-                e
-                for e in result
-                if cl in e["path"].lower()
-                or cl in e.get("summary", "").lower()
-                or any(cl in t.lower() for t in e.get("tags", []))
-            ]
+        result = [
+            e
+            for e in result
+            if cl in e["path"].lower()
+            or cl in e.get("summary", "").lower()
+            or any(cl in t.lower() for t in e.get("tags", []))
+        ]
 
     return {"count": len(result), "endpoints": result}
 

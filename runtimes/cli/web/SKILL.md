@@ -12,8 +12,8 @@ Search the web and fetch full page content for crypto research, protocol documen
 
 | Command | Description | Cost |
 |---------|-------------|------|
-| `search` | Web search with optional site filter | 1 credit |
-| `fetch` | Fetch and parse a URL into readable content | 1 credit |
+| `search` | Web search with optional site filter | 3 credits |
+| `fetch` | Fetch and parse a URL into readable content | 2 credits |
 
 ## Common Tasks
 
@@ -62,6 +62,9 @@ surf-web fetch --url https://docs.aave.com/hub
 
 # Read a blog post or article
 surf-web fetch --url https://vitalik.eth.limo
+
+# Wait for dynamic content to load before extracting
+surf-web fetch --url https://example.com --wait-for-selector ".main-content" --timeout 10000
 ```
 **What to look for:** The `content` field contains the full parsed page text. The `title` and `url` fields confirm you fetched the right page. Use this to extract specific data points, quotes, or technical specifications.
 
