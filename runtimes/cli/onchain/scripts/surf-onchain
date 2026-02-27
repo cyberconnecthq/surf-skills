@@ -20,7 +20,7 @@ usage() {
   "command": "surf-onchain",
   "subcommands": {
     "query": {"args": "", "description": "Execute structured query on blockchain data (5 credits)"},
-    "sql": {"args": "", "description": "Execute raw SQL query (5 credits)"},
+    "sql": {"args": "--sql 'SELECT 1' [--max-rows 100]", "description": "Execute raw SQL query (5 credits)"},
     "tx": {"args": "--hash 0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060 --chain ethereum", "description": "Get transaction by hash (5 credits)"},
     "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
@@ -50,17 +50,31 @@ case "${1:---help}" in
 
   sql)
     shift
-    local_sql=""
+    local_sql="" local_max_rows=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --sql) local_sql="$2"; shift 2 ;;
-        *) echo '{"error": "Unknown flag: $1. Valid: --sql"}' >&2; exit 1 ;;
+        --max-rows) local_max_rows="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --sql, --max-rows\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_sql" ]]; then
       echo '{"error": "--sql is required (SQL query string)"}' >&2; exit 1
     fi
-    surf_post "${API_PREFIX}/sql" "{\"sql\": \"$local_sql\"}"
+    # Build JSON body with proper escaping using jq if available, else python3
+    if command -v jq &>/dev/null; then
+      local_body=$(jq -n --arg sql "$local_sql" --arg mr "$local_max_rows" \
+        'if $mr == "" then {sql: $sql} else {sql: $sql, max_rows: ($mr | tonumber)} end')
+    else
+      local_body=$(python3 -c "
+import json, sys
+body = {'sql': sys.argv[1]}
+if sys.argv[2]:
+    body['max_rows'] = int(sys.argv[2])
+print(json.dumps(body))
+" "$local_sql" "$local_max_rows")
+    fi
+    surf_post "${API_PREFIX}/sql" "$local_body"
     ;;
 
   tx)

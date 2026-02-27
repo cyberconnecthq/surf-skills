@@ -19,37 +19,47 @@ usage() {
 {"usage": {
   "command": "surf-project",
   "subcommands": {
-    "contracts": {"args": "--id ethereum", "description": "Get project contracts (1 credit)"},
+    "contracts": {"args": "--id ethereum | --q ethereum", "description": "Get project contracts (1 credit)"},
     "discover": {"args": "", "description": "Discover projects (1 credit)"},
-    "discover-fdv": {"args": "--id ethereum", "description": "Get discover project FDV (1 credit)"},
-    "discover-summary": {"args": "--id ethereum", "description": "Get discover project summary (1 credit)"},
-    "discover-tweets": {"args": "--id ethereum", "description": "Get discover project tweets (1 credit)"},
-    "events": {"args": "--id ethereum [--type general]", "description": "Get project events (1 credit)"},
-    "funding": {"args": "--id ethereum", "description": "Get project funding history (1 credit)"},
-    "listings": {"args": "--id ethereum", "description": "Get project exchange listings (1 credit)"},
+    "discover-fdv": {"args": "--id ethereum | --q monad", "description": "Get discover project FDV (1 credit)"},
+    "discover-summary": {"args": "--id ethereum | --q monad", "description": "Get discover project summary (1 credit)"},
+    "discover-tweets": {"args": "--id ethereum | --q monad", "description": "Get discover project tweets (1 credit)"},
+    "events": {"args": "--id ethereum | --q uniswap [--type general]", "description": "Get project events (1 credit)"},
+    "funding": {"args": "--id ethereum | --q uniswap", "description": "Get project funding history (1 credit)"},
+    "listings": {"args": "--id ethereum | --q uniswap", "description": "Get project exchange listings (1 credit)"},
     "metrics": {"args": "--id ethereum --metric volume [--start 2024-01-01] [--end 2024-12-31] [--chain eth]", "description": "Get project metrics (1 credit)"},
-    "mindshare": {"args": "--id ethereum [--timeframe 7d]", "description": "Get project mindshare (1 credit)"},
-    "mindshare-by-tag": {"args": "--id ethereum", "description": "Get project mindshare by tag (1 credit)"},
-    "mindshare-geo": {"args": "--id ethereum", "description": "Get project mindshare by geography (1 credit)"},
-    "mindshare-lang": {"args": "--id ethereum", "description": "Get project mindshare by language (1 credit)"},
-    "mindshare-leaderboard": {"args": "--id ethereum", "description": "Get project mindshare leaderboard (1 credit)"},
-    "overview": {"args": "--id ethereum", "description": "Get project overview (1 credit)"},
+    "mindshare": {"args": "--id ethereum | --q bitcoin [--timeframe 7d]", "description": "Get project mindshare (1 credit)"},
+    "mindshare-by-tag": {"args": "--id ethereum | --q bitcoin", "description": "Get project mindshare by tag (1 credit)"},
+    "mindshare-geo": {"args": "--id ethereum | --q bitcoin", "description": "Get project mindshare by geography (1 credit)"},
+    "mindshare-lang": {"args": "--id ethereum | --q bitcoin", "description": "Get project mindshare by language (1 credit)"},
+    "mindshare-leaderboard": {"args": "--id ethereum | --q bitcoin", "description": "Get project mindshare leaderboard (1 credit)"},
+    "overview": {"args": "--id ethereum | --q ethereum", "description": "Get project overview (1 credit)"},
     "search": {"args": "--query bitcoin [--limit 20]", "description": "Search projects (1 credit)"},
-    "smart-followers": {"args": "--id ethereum", "description": "Get project smart followers (1 credit)"},
-    "smart-followers-events": {"args": "--id ethereum", "description": "Get project smart followers events (1 credit)"},
-    "smart-followers-history": {"args": "--id ethereum", "description": "Get project smart followers history (1 credit)"},
-    "smart-followers-members": {"args": "--id ethereum", "description": "Get project smart followers members (1 credit)"},
-    "social": {"args": "--id ethereum", "description": "Get project social links (1 credit)"},
-    "tags": {"args": "[--id ethereum]", "description": "Get project tags (1 credit)"},
-    "team": {"args": "--id ethereum", "description": "Get project team (1 credit)"},
-    "token-info": {"args": "--id ethereum", "description": "Get project token info (1 credit)"},
-    "tokenomics": {"args": "--id ethereum", "description": "Get project tokenomics (1 credit)"},
+    "smart-followers": {"args": "--id ethereum | --q bitcoin [--timeframe 30d]", "description": "Get project smart followers (1 credit)"},
+    "smart-followers-events": {"args": "--id ethereum | --q uniswap", "description": "Get project smart followers events (1 credit)"},
+    "smart-followers-history": {"args": "--id ethereum | --q uniswap", "description": "Get project smart followers history (1 credit)"},
+    "smart-followers-members": {"args": "--id ethereum | --q uniswap", "description": "Get project smart followers members (1 credit)"},
+    "social": {"args": "--id ethereum | --q uniswap", "description": "Get project social links (1 credit)"},
+    "tags": {"args": "[--id ethereum | --q ethereum]", "description": "Get project tags (1 credit)"},
+    "team": {"args": "--id ethereum | --q uniswap", "description": "Get project team (1 credit)"},
+    "token-info": {"args": "--id ethereum | --q uniswap", "description": "Get project token info (1 credit)"},
+    "tokenomics": {"args": "--id ethereum | --q uniswap", "description": "Get project tokenomics (1 credit)"},
     "top": {"args": "--metric tvl", "description": "Get top/ranked projects (1 credit)"},
-    "vc-portfolio": {"args": "--id ethereum", "description": "Get VC portfolio (1 credit)"},
+    "vc-portfolio": {"args": "--id ethereum | --q a16z", "description": "Get VC portfolio (1 credit)"},
     "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
 }}
 EOF
+}
+
+# Build query string from --id and --q values
+# Usage: _build_entity_qs "$local_id" "$local_q"
+_build_entity_qs() {
+  local id_val="$1" q_val="$2"
+  local qs=""
+  [[ -n "$id_val" ]] && qs="id=$(surf_urlencode "$id_val")"
+  [[ -n "$q_val" ]] && qs="${qs:+${qs}&}q=$(surf_urlencode "$q_val")"
+  echo "$qs"
 }
 
 # Main dispatch
@@ -59,17 +69,18 @@ case "${1:---help}" in
 
   contracts)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q ethereum)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/contracts" "$local_qs"
     ;;
 
@@ -80,99 +91,105 @@ case "${1:---help}" in
 
   discover-fdv)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. monad, berachain)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id monad or --q monad)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/discover/fdv" "$local_qs"
     ;;
 
   discover-summary)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. monad, berachain)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id monad or --q monad)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/discover/summary" "$local_qs"
     ;;
 
   discover-tweets)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. monad, berachain)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id monad or --q monad)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/discover/tweets" "$local_qs"
     ;;
 
   events)
     shift
-    local_id="" local_type=""
+    local_id="" local_q="" local_type=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
+        --q) local_q="$2"; shift 2 ;;
         --type) local_type="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --type\"}" >&2; exit 1 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q, --type\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. uniswap, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id uniswap or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     [[ -n "$local_type" ]] && local_qs="${local_qs:+${local_qs}&}type=$local_type"
     surf_get "${API_PREFIX}/events" "$local_qs"
     ;;
 
   funding)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/funding" "$local_qs"
     ;;
 
   listings)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/listings" "$local_qs"
     ;;
 
@@ -208,102 +225,108 @@ case "${1:---help}" in
 
   mindshare)
     shift
-    local_id="" local_timeframe="7d"
+    local_id="" local_q="" local_timeframe="7d"
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
+        --q) local_q="$2"; shift 2 ;;
         --timeframe) local_timeframe="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --timeframe\"}" >&2; exit 1 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q, --timeframe\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. bitcoin, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id bitcoin or --q bitcoin)"}' >&2; exit 1
     fi
     if [[ -n "$local_timeframe" ]] && [[ "$local_timeframe" != "1d" ]] && [[ "$local_timeframe" != "7d" ]] && [[ "$local_timeframe" != "30d" ]]; then
       echo '{"error": "--timeframe invalid. Valid: 1d, 7d, 30d"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     [[ -n "$local_timeframe" ]] && local_qs="${local_qs:+${local_qs}&}timeframe=$local_timeframe"
     surf_get "${API_PREFIX}/mindshare" "$local_qs"
     ;;
 
   mindshare-by-tag)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. bitcoin, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id bitcoin or --q bitcoin)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/mindshare/by-tag" "$local_qs"
     ;;
 
   mindshare-geo)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. bitcoin, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id bitcoin or --q bitcoin)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/mindshare/geo" "$local_qs"
     ;;
 
   mindshare-lang)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. bitcoin, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id bitcoin or --q bitcoin)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/mindshare/lang" "$local_qs"
     ;;
 
   mindshare-leaderboard)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. bitcoin, ethereum)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id bitcoin or --q bitcoin)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/mindshare/leaderboard" "$local_qs"
     ;;
 
   overview)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap, bitcoin)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q ethereum)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/overview" "$local_qs"
     ;;
 
@@ -327,143 +350,153 @@ case "${1:---help}" in
 
   smart-followers)
     shift
-    local_id=""
+    local_id="" local_q="" local_timeframe=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        --timeframe) local_timeframe="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q, --timeframe\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q bitcoin)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
+    [[ -n "$local_timeframe" ]] && local_qs="${local_qs:+${local_qs}&}timeframe=$local_timeframe"
     surf_get "${API_PREFIX}/smart-followers" "$local_qs"
     ;;
 
   smart-followers-events)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/smart-followers/events" "$local_qs"
     ;;
 
   smart-followers-history)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/smart-followers/history" "$local_qs"
     ;;
 
   smart-followers-members)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/smart-followers/members" "$local_qs"
     ;;
 
   social)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/social" "$local_qs"
     ;;
 
   tags)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    local_qs=""
-    [[ -n "$local_id" ]] && local_qs="${local_qs:+${local_qs}&}id=$local_id"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/tags" "$local_qs"
     ;;
 
   team)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/team" "$local_qs"
     ;;
 
   token-info)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/token-info" "$local_qs"
     ;;
 
   tokenomics)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. ethereum, uniswap)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id ethereum or --q uniswap)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/tokenomics" "$local_qs"
     ;;
 
@@ -488,17 +521,18 @@ case "${1:---help}" in
 
   vc-portfolio)
     shift
-    local_id=""
+    local_id="" local_q=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --id) local_id="$2"; shift 2 ;;
-        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id\"}" >&2; exit 1 ;;
+        --q) local_q="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --id, --q\"}" >&2; exit 1 ;;
       esac
     done
-    if [[ -z "$local_id" ]]; then
-      echo '{"error": "--id is required (e.g. a16z, paradigm, sequoia-capital)"}' >&2; exit 1
+    if [[ -z "$local_id" && -z "$local_q" ]]; then
+      echo '{"error": "one of --id or --q is required (e.g. --id a16z or --q paradigm)"}' >&2; exit 1
     fi
-    local_qs="id=$(surf_urlencode "$local_id")"
+    local_qs=$(_build_entity_qs "$local_id" "$local_q")
     surf_get "${API_PREFIX}/vc-portfolio" "$local_qs"
     ;;
 

@@ -19,8 +19,8 @@ usage() {
 {"usage": {
   "command": "surf-web",
   "subcommands": {
-    "fetch": {"args": "", "description": "Fetch and parse a URL (1 credit)"},
-    "search": {"args": "--query bitcoin [--limit 20] [--site coindesk.com]", "description": "Search the web (1 credit)"},
+    "fetch": {"args": "--url https://example.com [--target-selector .main] [--remove-selector .ads] [--wait-for-selector .content] [--timeout 30000]", "description": "Fetch and parse a URL (2 credits)"},
+    "search": {"args": "--query bitcoin [--limit 20] [--site coindesk.com]", "description": "Search the web (3 credits)"},
     "--check-setup": {"args": "", "description": "Verify environment configuration"}
   }
 }}
@@ -34,13 +34,15 @@ case "${1:---help}" in
 
   fetch)
     shift
-    local_url="" local_target="" local_remove=""
+    local_url="" local_target="" local_remove="" local_wait_for="" local_timeout=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --url) local_url="$2"; shift 2 ;;
         --target-selector) local_target="$2"; shift 2 ;;
         --remove-selector) local_remove="$2"; shift 2 ;;
-        *) echo '{"error": "Unknown flag: $1. Valid: --url, --target-selector, --remove-selector"}' >&2; exit 1 ;;
+        --wait-for-selector) local_wait_for="$2"; shift 2 ;;
+        --timeout) local_timeout="$2"; shift 2 ;;
+        *) echo "{\"error\": \"Unknown flag: $1. Valid: --url, --target-selector, --remove-selector, --wait-for-selector, --timeout\"}" >&2; exit 1 ;;
       esac
     done
     if [[ -z "$local_url" ]]; then
@@ -49,6 +51,8 @@ case "${1:---help}" in
     local_json="{\"url\": \"$local_url\""
     [[ -n "$local_target" ]] && local_json="$local_json, \"target_selector\": \"$local_target\""
     [[ -n "$local_remove" ]] && local_json="$local_json, \"remove_selector\": \"$local_remove\""
+    [[ -n "$local_wait_for" ]] && local_json="$local_json, \"wait_for_selector\": \"$local_wait_for\""
+    [[ -n "$local_timeout" ]] && local_json="$local_json, \"timeout\": $local_timeout"
     local_json="$local_json}"
     surf_post "${API_PREFIX}/fetch" "$local_json"
     ;;

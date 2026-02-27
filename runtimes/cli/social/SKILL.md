@@ -13,11 +13,11 @@ Search X/Twitter content, analyze project sentiment, research KOL profiles, trac
 | Command | Description | Cost |
 |---------|-------------|------|
 | `search --query "bitcoin" --limit 10` | Search tweets by keyword | 1 |
-| `sentiment --id ethereum` | Sentiment score for a project | 1 |
+| `sentiment --id ethereum` or `--q ethereum` | Sentiment score for a project | 1 |
 | `user --handle vitalikbuterin` | KOL profile (bio, followers, following) | 1 |
 | `user-posts --handle vitalikbuterin --limit 10` | Recent posts from a user | 1 |
 | `user-related --handle vitalikbuterin` | Related/similar accounts | 1 |
-| `follower-geo --handle vitalikbuterin` | Follower geography breakdown | 1 |
+| `follower-geo --id <uuid>` or `--q bitcoin` | Follower geography breakdown | 1 |
 | `top --metric trending --limit 10` | Trending social content | 1 |
 | `top --metric engagement --limit 10` | Top content by engagement | 1 |
 | `tweets --ids '["1880293339000000000"]'` | Fetch specific tweets by ID | 1 |
@@ -55,8 +55,8 @@ surf-social user-posts --handle CryptoHayes --limit 20
 # Step 3: Find related accounts (who they're connected to)
 surf-social user-related --handle CryptoHayes
 
-# Step 4: Check where their followers are from
-surf-social follower-geo --handle CryptoHayes
+# Step 4: Check where their followers are from (use --q for name-based lookup)
+surf-social follower-geo --q CryptoHayes
 ```
 
 **What to look for:** Follower count vs engagement ratio reveals real influence. Related accounts show their network. Geography data helps assess regional bias. Scan posts for consistent shilling patterns or genuine analysis.
@@ -133,7 +133,7 @@ surf-project overview --id mentioned_project
 
 ## Tips
 
-- **`--id` vs `--handle`:** Use `--id` for project slugs (e.g., `ethereum`, `bitcoin`) in `sentiment`. Use `--handle` for X/Twitter usernames (e.g., `vitalikbuterin`, `CryptoHayes`) in `user`, `user-posts`, `user-related`, `follower-geo`.
+- **`--id`/`--q` vs `--handle`:** Use `--id` (UUID) or `--q` (name) for entity-resolved endpoints (`sentiment`, `follower-geo`). Use `--handle` for X/Twitter usernames (e.g., `vitalikbuterin`, `CryptoHayes`) in `user`, `user-posts`, `user-related`.
 - **`--metric` for `top`:** Valid values are `trending` and `engagement`.
 - **Tweet search returns X/Twitter posts.** Results include tweet text, author info, and engagement stats (views, likes, reposts, replies).
 - **All output is JSON.** Data goes to stdout, errors to stderr.

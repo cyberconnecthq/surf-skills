@@ -12,7 +12,7 @@ Execute SQL queries against on-chain blockchain data (Ethereum transactions, DEX
 
 | Command | Description | Cost |
 |---------|-------------|------|
-| `sql --sql "SELECT ..."` | Execute raw SQL query | 5 |
+| `sql --sql "SELECT ..." [--max-rows 100]` | Execute raw SQL query | 5 |
 | `query --body '{...}'` | Execute structured query (JSON) | 5 |
 | `tx --hash 0x... --chain ethereum` | Look up transaction by hash | 5 |
 
@@ -170,7 +170,8 @@ surf-project metrics --id uniswap --metric volume
 - **Token pairs use hyphens.** Format is `TOKEN_A-TOKEN_B` (e.g., `USDC-WETH`, `WBTC-WETH`).
 - **DEX `project` values:** uniswap, fluid, curve, native, pancakeswap, sushiswap, balancer, ekubo.
 - **Addresses must be lowercase.** Always wrap in `lower('0x...')`.
-- **`--sql` requires quoting.** Wrap the full SQL string in double quotes.
+- **`--sql` requires quoting.** Wrap the full SQL string in double quotes. SQL is safely JSON-escaped via jq (or python3 fallback).
+- **`--max-rows`** limits the maximum number of returned rows (default server-side: 1000, max: 10,000).
 - **All output is JSON.** Data goes to stdout, errors to stderr.
 - **5 credits per query** for all onchain endpoints.
 - **Max 10,000 rows.** Use `LIMIT` to control result size.

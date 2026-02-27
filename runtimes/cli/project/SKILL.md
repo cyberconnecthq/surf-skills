@@ -168,7 +168,7 @@ surf-onchain sql --sql "SELECT project, count() AS trades, sum(amount_usd) AS vo
 
 ## Tips
 
-- **Finding the right `--id`:** Always `search` first. The `--id` is a slug (e.g., `uniswap`, `ethereum`, `aave`), not a UUID.
+- **`--id` vs `--q`:** Most endpoints support both `--id` (Surf UUID, takes priority) and `--q` (entity name like `ethereum`, `uniswap`). Use `--q` when you have a project name; use `--id` when you have the exact UUID. Only `metrics` requires a Token Terminal slug via `--id`.
 - **Metrics time range:** Use `--start` and `--end` (YYYY-MM-DD) with `metrics` to narrow the time window.
 - **Large responses:** Use `--limit` on `search` and `top` to control response size. Default varies by endpoint.
 - **All output is JSON.** Data goes to stdout, errors to stderr.
