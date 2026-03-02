@@ -209,7 +209,17 @@ surf market-top --metric market_cap -o json
 
 **Credit** (3): `me-credit-history`, `me-credit-summary`, `me-rate-limits`
 
-**X Legacy** (4): `x-get-tweets-by-ids`, `x-get-user`, `x-get-user-tweets`, `x-search`
+**X Legacy** (4): `x-get-tweets-by-ids`, `x-get-user`, `x-get-user-tweets`, `x-search` — deprecated, prefer `/v1/social/*`
+
+### X Legacy Examples
+
+```bash
+# Search tweets (GET, uses --q flag)
+surf x-search --q "bitcoin ETF"
+
+# Get user profile
+surf x-get-user --handle vitalikbuterin
+```
 
 ## Troubleshooting
 
