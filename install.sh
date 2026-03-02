@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# surf-core skill installer
-# Works with: Claude Code, OpenCode, Gemini CLI, GitHub Copilot, Codex
-#
-# What it does:
-#   1. Symlinks skills to ~/.claude/skills/  (agent discovery)
-#   2. Symlinks commands to ~/.surf-core/bin/ (execution via PATH)
-#   3. Adds ~/.surf-core/bin to PATH         (shell rc)
+# surf-core installer
+# Sets up restish API config, skills, and CLI tools.
 #
 # Usage:
-#   ./install.sh            Install all skills globally
-#   ./install.sh --list     List available skills
-#   ./install.sh --remove   Uninstall skills + bin + PATH
+#   ./install.sh            Install everything
+#   ./install.sh --remove   Uninstall everything
 #   ./install.sh --check    Verify installation status
+#   ./install.sh --help     Show help
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLI_DIR="$SCRIPT_DIR/runtimes/cli"
 SKILL_DIR="$HOME/.claude/skills"
 BIN_DIR="$HOME/.surf-core/bin"
+SURF_SESSION_FILE="${HOME}/.surf-core/session.json"
 PATH_LINE='export PATH="$HOME/.surf-core/bin:$PATH"'
 PATH_COMMENT="# surf-core CLI tools"
 
@@ -34,118 +29,204 @@ NC='\033[0m'
 # Helpers
 # ---------------------------------------------------------------------------
 
-_get_skill_name() {
-  grep '^name:' "$1/SKILL.md" 2>/dev/null | head -1 | sed 's/name: //'
-}
-
-_get_script_path() {
-  # Find the main executable in scripts/ (the one without _ prefix)
-  local d="$1"
-  for f in "$d"/scripts/surf-*; do
-    [ -x "$f" ] && basename "$f" | grep -qv '^_' && echo "$f" && return
-  done
-}
-
 _shell_rcs() {
   local rcs=()
-  # .zshenv is sourced by ALL zsh instances (interactive + non-interactive)
-  # This is critical for tools like OpenCode that spawn non-interactive shells
   if [ "$(uname)" = "Darwin" ] || [ -n "${ZSH_VERSION:-}" ]; then
     rcs+=("$HOME/.zshenv")
   fi
   [ -f "$HOME/.bashrc" ] && rcs+=("$HOME/.bashrc")
   [ -f "$HOME/.bash_profile" ] && rcs+=("$HOME/.bash_profile")
-  # Fallback
   if [ ${#rcs[@]} -eq 0 ]; then
     rcs+=("$HOME/.bashrc")
   fi
   echo "${rcs[@]}"
 }
 
-# ---------------------------------------------------------------------------
-# Commands
-# ---------------------------------------------------------------------------
-
-cmd_list() {
-  echo "Available surf-core skills:"
-  echo ""
-  printf "  ${DIM}%-18s %-16s %s${NC}\n" "SKILL" "COMMAND" "DESCRIPTION"
-  for d in "$CLI_DIR"/*/; do
-    [ -f "$d/SKILL.md" ] || continue
-    local name=$(_get_skill_name "$d")
-    local script=$(_get_script_path "$d")
-    local cmd=""
-    [ -n "$script" ] && cmd=$(basename "$script")
-    local desc=$(grep '^description:' "$d/SKILL.md" | head -1 | sed 's/description: //')
-    printf "  %-18s %-16s %s\n" "$name" "$cmd" "$desc"
-  done
+_restish_config_dir() {
+  case "$(uname)" in
+    Darwin) echo "$HOME/Library/Application Support/restish" ;;
+    *)      echo "${XDG_CONFIG_HOME:-$HOME/.config}/restish" ;;
+  esac
 }
 
-cmd_install() {
-  echo "Installing surf-core..."
+_hermod_url_from_session() {
+  if [[ -f "$SURF_SESSION_FILE" ]]; then
+    python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(data.get('hermod_url', ''))
+" "$SURF_SESSION_FILE" 2>/dev/null || echo ""
+  else
+    echo ""
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Install steps
+# ---------------------------------------------------------------------------
+
+check_restish() {
+  if command -v restish &>/dev/null; then
+    echo -e "  ${GREEN}found${NC} restish ($(command -v restish))"
+    return 0
+  fi
+  echo -e "  ${RED}restish not found${NC}"
   echo ""
+  echo "  Install restish first:"
+  echo "    macOS:  brew install restish"
+  echo "    Linux:  go install github.com/danielgtaylor/restish@latest"
+  echo "    Other:  https://rest.sh/#/guide?id=installation"
+  echo ""
+  exit 1
+}
 
-  # --- Step 1: Skill discovery (symlinks to ~/.claude/skills/) ---
-  echo -e "${CYAN}[1/3]${NC} Skill discovery → $SKILL_DIR/"
+install_restish_config() {
+  local config_dir
+  config_dir=$(_restish_config_dir)
+  local apis_json="$config_dir/apis.json"
+  local template="$SCRIPT_DIR/config/apis.json.template"
+
+  # Determine hermod URL
+  local hermod_url
+  hermod_url=$(_hermod_url_from_session)
+  : "${hermod_url:=https://api.stg.ask.surf}"
+
+  # Absolute path to surf-auth
+  local surf_auth_path="$SCRIPT_DIR/bin/surf-auth"
+
+  mkdir -p "$config_dir"
+
+  if [[ -f "$apis_json" ]]; then
+    # Merge: inject/update "surf" key without clobbering other APIs
+    python3 -c "
+import json, sys
+
+apis_path = sys.argv[1]
+template_path = sys.argv[2]
+hermod_url = sys.argv[3]
+auth_path = sys.argv[4]
+
+with open(apis_path) as f:
+    apis = json.load(f)
+
+with open(template_path) as f:
+    tmpl_text = f.read()
+
+tmpl_text = tmpl_text.replace('__HERMOD_URL__', hermod_url)
+tmpl_text = tmpl_text.replace('__SURF_AUTH_PATH__', auth_path)
+tmpl = json.loads(tmpl_text)
+
+apis['surf'] = tmpl['surf']
+
+with open(apis_path, 'w') as f:
+    json.dump(apis, f, indent=2)
+    f.write('\n')
+" "$apis_json" "$template" "$hermod_url" "$surf_auth_path"
+    echo -e "  ${GREEN}merged${NC} 'surf' key into $apis_json"
+  else
+    # Fresh install: write from template
+    python3 -c "
+import sys
+
+template_path = sys.argv[1]
+output_path = sys.argv[2]
+hermod_url = sys.argv[3]
+auth_path = sys.argv[4]
+
+with open(template_path) as f:
+    content = f.read()
+
+content = content.replace('__HERMOD_URL__', hermod_url)
+content = content.replace('__SURF_AUTH_PATH__', auth_path)
+
+with open(output_path, 'w') as f:
+    f.write(content)
+" "$template" "$apis_json" "$hermod_url" "$surf_auth_path"
+    echo -e "  ${GREEN}created${NC} $apis_json"
+  fi
+}
+
+install_skills() {
   mkdir -p "$SKILL_DIR"
-  local skill_count=0
+  local count=0
 
-  for d in "$CLI_DIR"/*/; do
-    [ -f "$d/SKILL.md" ] || continue
-    local name=$(_get_skill_name "$d")
-    local target="$SKILL_DIR/$name"
-
-    if [ -L "$target" ]; then
-      local existing=$(readlink "$target")
-      if [ "$existing" = "$d" ]; then
-        continue  # already correct
+  # surf-api skill
+  local surf_api_src="$SCRIPT_DIR/skills/surf-api"
+  local surf_api_dst="$SKILL_DIR/surf-api"
+  if [[ -d "$surf_api_src" ]]; then
+    if [[ -L "$surf_api_dst" ]]; then
+      local existing
+      existing=$(readlink "$surf_api_dst")
+      if [[ "$existing" == "$surf_api_src" ]]; then
+        echo -e "  ${DIM}surf-api already linked${NC}"
+      else
+        rm "$surf_api_dst"
+        ln -s "$surf_api_src" "$surf_api_dst"
+        echo -e "  ${GREEN}+${NC} surf-api"
+        ((count++))
       fi
-      rm "$target"
-    elif [ -e "$target" ]; then
-      echo -e "  ${YELLOW}skip${NC} $name (non-symlink exists)"
-      continue
+    elif [[ -e "$surf_api_dst" ]]; then
+      echo -e "  ${YELLOW}skip${NC} surf-api (non-symlink exists)"
+    else
+      ln -s "$surf_api_src" "$surf_api_dst"
+      echo -e "  ${GREEN}+${NC} surf-api"
+      ((count++))
     fi
+  fi
 
-    ln -s "$d" "$target"
-    echo -e "  ${GREEN}+${NC} $name"
-    ((skill_count++))
-  done
-  [ $skill_count -eq 0 ] && echo -e "  ${DIM}all up to date${NC}"
+  # surf-login skill
+  local surf_login_src="$SCRIPT_DIR/login"
+  local surf_login_dst="$SKILL_DIR/surf-login"
+  if [[ -d "$surf_login_src" ]]; then
+    if [[ -L "$surf_login_dst" ]]; then
+      local existing
+      existing=$(readlink "$surf_login_dst")
+      if [[ "$existing" == "$surf_login_src" ]]; then
+        echo -e "  ${DIM}surf-login already linked${NC}"
+      else
+        rm "$surf_login_dst"
+        ln -s "$surf_login_src" "$surf_login_dst"
+        echo -e "  ${GREEN}+${NC} surf-login"
+        ((count++))
+      fi
+    elif [[ -e "$surf_login_dst" ]]; then
+      echo -e "  ${YELLOW}skip${NC} surf-login (non-symlink exists)"
+    else
+      ln -s "$surf_login_src" "$surf_login_dst"
+      echo -e "  ${GREEN}+${NC} surf-login"
+      ((count++))
+    fi
+  fi
 
-  # --- Step 2: CLI commands (symlinks to ~/.surf-core/bin/) ---
-  echo -e "${CYAN}[2/3]${NC} CLI commands → $BIN_DIR/"
+  [[ $count -eq 0 ]] && echo -e "  ${DIM}all skills up to date${NC}"
+}
+
+install_bin() {
   mkdir -p "$BIN_DIR"
-  local bin_count=0
 
-  for d in "$CLI_DIR"/*/; do
-    [ -f "$d/SKILL.md" ] || continue
-    local script=$(_get_script_path "$d")
-    [ -z "$script" ] && continue
-    local cmd=$(basename "$script")
-    local target="$BIN_DIR/$cmd"
-
-    if [ -L "$target" ]; then
-      local existing=$(readlink "$target")
-      if [ "$existing" = "$script" ]; then
-        continue
-      fi
-      rm "$target"
-    elif [ -e "$target" ]; then
-      echo -e "  ${YELLOW}skip${NC} $cmd (non-symlink exists)"
-      continue
+  # Symlink surf-session
+  local src="$SCRIPT_DIR/login/scripts/surf-session"
+  local dst="$BIN_DIR/surf-session"
+  if [[ -L "$dst" ]]; then
+    local existing
+    existing=$(readlink "$dst")
+    if [[ "$existing" != "$src" ]]; then
+      rm "$dst"
+      ln -s "$src" "$dst"
+      echo -e "  ${GREEN}+${NC} surf-session"
+    else
+      echo -e "  ${DIM}surf-session already linked${NC}"
     fi
+  elif [[ -e "$dst" ]]; then
+    echo -e "  ${YELLOW}skip${NC} surf-session (non-symlink exists)"
+  else
+    ln -s "$src" "$dst"
+    echo -e "  ${GREEN}+${NC} surf-session"
+  fi
 
-    ln -s "$script" "$target"
-    echo -e "  ${GREEN}+${NC} $cmd"
-    ((bin_count++))
-  done
-  [ $bin_count -eq 0 ] && echo -e "  ${DIM}all up to date${NC}"
-
-  # --- Step 3: PATH ---
-  echo -e "${CYAN}[3/3]${NC} PATH setup"
-
+  # PATH setup
   if echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
-    echo -e "  ${DIM}already in PATH${NC}"
+    echo -e "  ${DIM}PATH already configured${NC}"
   else
     local added_to=""
     for rc in $(_shell_rcs); do
@@ -156,43 +237,50 @@ cmd_install() {
         added_to="$added_to $(basename "$rc")"
       fi
     done
-
-    if [ -n "$added_to" ]; then
-      echo -e "  ${GREEN}added${NC} to$added_to"
-      echo -e "  ${YELLOW}→ Run: source ~/.zshrc${NC} (or restart terminal)"
+    if [[ -n "$added_to" ]]; then
+      echo -e "  ${GREEN}added${NC} PATH to$added_to"
+      echo -e "  ${YELLOW}->  Run: source ~/.zshrc${NC} (or restart terminal)"
     else
-      echo -e "  ${DIM}already configured${NC}"
+      echo -e "  ${DIM}PATH already in shell rc${NC}"
     fi
-
-    # Also export for current session
     export PATH="$BIN_DIR:$PATH"
   fi
+}
 
-  # --- Verify ---
+# ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+cmd_install() {
+  echo "Installing surf-core..."
   echo ""
-  if command -v surf-session &>/dev/null || [ -x "$BIN_DIR/surf-session" ]; then
-    if "$BIN_DIR/surf-session" check >/dev/null 2>&1; then
-      echo -e "${GREEN}Ready.${NC} Session valid. Try: surf-market price --ids bitcoin --vs-currencies usd"
-    else
-      echo -e "${YELLOW}Installed, but no active session.${NC}"
-      echo "  Run: surf-session login"
-    fi
-  else
-    echo -e "${GREEN}Installed.${NC}"
-  fi
+
+  echo -e "${CYAN}[1/4]${NC} Checking restish"
+  check_restish
+
+  echo -e "${CYAN}[2/4]${NC} Restish API config"
+  install_restish_config
+
+  echo -e "${CYAN}[3/4]${NC} Skills -> $SKILL_DIR/"
+  install_skills
+
+  echo -e "${CYAN}[4/4]${NC} CLI tools -> $BIN_DIR/"
+  install_bin
+
+  echo ""
+  echo -e "${GREEN}Done.${NC} Try: restish surf list-operations"
 }
 
 cmd_remove() {
   echo "Removing surf-core..."
   echo ""
 
-  # Remove skill symlinks
   local removed=0
-  for d in "$CLI_DIR"/*/; do
-    [ -f "$d/SKILL.md" ] || continue
-    local name=$(_get_skill_name "$d")
+
+  # Remove skill symlinks
+  for name in surf-api surf-login; do
     local target="$SKILL_DIR/$name"
-    if [ -L "$target" ] && [[ "$(readlink "$target")" == *"surf-core"* ]]; then
+    if [[ -L "$target" ]] && [[ "$(readlink "$target")" == *"surf-core"* ]]; then
       rm "$target"
       echo -e "  ${RED}-${NC} skill: $name"
       ((removed++))
@@ -200,9 +288,9 @@ cmd_remove() {
   done
 
   # Remove bin symlinks
-  if [ -d "$BIN_DIR" ]; then
+  if [[ -d "$BIN_DIR" ]]; then
     for f in "$BIN_DIR"/surf-*; do
-      [ -L "$f" ] || continue
+      [[ -L "$f" ]] || continue
       echo -e "  ${RED}-${NC} bin: $(basename "$f")"
       rm "$f"
       ((removed++))
@@ -210,10 +298,31 @@ cmd_remove() {
     rmdir "$BIN_DIR" 2>/dev/null || true
   fi
 
+  # Remove restish surf config
+  local config_dir
+  config_dir=$(_restish_config_dir)
+  local apis_json="$config_dir/apis.json"
+  if [[ -f "$apis_json" ]]; then
+    python3 -c "
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    data = json.load(f)
+if 'surf' in data:
+    del data['surf']
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+    print('removed', file=sys.stderr)
+" "$apis_json" 2>/dev/null && {
+      echo -e "  ${RED}-${NC} restish: surf API config"
+      ((removed++))
+    }
+  fi
+
   # Remove PATH from shell rcs
   for rc in $(_shell_rcs); do
     if grep -qF 'surf-core/bin' "$rc" 2>/dev/null; then
-      # Remove the PATH line and comment
       sed -i.bak '/# surf-core CLI tools/d' "$rc"
       sed -i.bak '/surf-core\/bin/d' "$rc"
       rm -f "${rc}.bak"
@@ -230,48 +339,52 @@ cmd_check() {
   echo "surf-core installation status:"
   echo ""
 
-  # Check skills
-  local skill_ok=0 skill_broken=0
-  for d in "$CLI_DIR"/*/; do
-    [ -f "$d/SKILL.md" ] || continue
-    local name=$(_get_skill_name "$d")
-    local target="$SKILL_DIR/$name"
-    if [ -L "$target" ] && [ -e "$target" ]; then
-      ((skill_ok++))
-    else
-      echo -e "  ${RED}missing${NC} skill: $name"
-      ((skill_broken++))
-    fi
-  done
-  echo -e "  Skills: ${GREEN}$skill_ok${NC} installed, ${RED}$skill_broken${NC} missing"
-
-  # Check bin
-  local bin_ok=0 bin_broken=0
-  for d in "$CLI_DIR"/*/; do
-    local script=$(_get_script_path "$d" 2>/dev/null)
-    [ -z "$script" ] && continue
-    local cmd=$(basename "$script")
-    if [ -L "$BIN_DIR/$cmd" ] && [ -e "$BIN_DIR/$cmd" ]; then
-      ((bin_ok++))
-    else
-      echo -e "  ${RED}missing${NC} bin: $cmd"
-      ((bin_broken++))
-    fi
-  done
-  echo -e "  Commands: ${GREEN}$bin_ok${NC} installed, ${RED}$bin_broken${NC} missing"
-
-  # Check PATH
-  if echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
-    echo -e "  PATH: ${GREEN}configured${NC}"
+  # restish
+  if command -v restish &>/dev/null; then
+    echo -e "  restish:     ${GREEN}installed${NC}"
   else
-    echo -e "  PATH: ${RED}not configured${NC} (run: source ~/.zshrc)"
+    echo -e "  restish:     ${RED}not found${NC}"
   fi
 
-  # Check session
-  if "$BIN_DIR/surf-session" check >/dev/null 2>&1; then
-    echo -e "  Session: ${GREEN}valid${NC}"
+  # restish config
+  local config_dir
+  config_dir=$(_restish_config_dir)
+  local apis_json="$config_dir/apis.json"
+  if [[ -f "$apis_json" ]] && python3 -c "import json; json.load(open('$apis_json'))['surf']" 2>/dev/null; then
+    echo -e "  API config:  ${GREEN}configured${NC}"
   else
-    echo -e "  Session: ${YELLOW}not connected${NC} (run: surf-session login)"
+    echo -e "  API config:  ${RED}missing${NC}"
+  fi
+
+  # Skills
+  for name in surf-api surf-login; do
+    local target="$SKILL_DIR/$name"
+    if [[ -L "$target" ]] && [[ -e "$target" ]]; then
+      echo -e "  skill/$name: ${GREEN}linked${NC}"
+    else
+      echo -e "  skill/$name: ${RED}missing${NC}"
+    fi
+  done
+
+  # bin
+  if [[ -L "$BIN_DIR/surf-session" ]] && [[ -e "$BIN_DIR/surf-session" ]]; then
+    echo -e "  surf-session: ${GREEN}linked${NC}"
+  else
+    echo -e "  surf-session: ${RED}missing${NC}"
+  fi
+
+  # PATH
+  if echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
+    echo -e "  PATH:        ${GREEN}configured${NC}"
+  else
+    echo -e "  PATH:        ${YELLOW}not in current shell${NC} (run: source ~/.zshrc)"
+  fi
+
+  # Session
+  if [[ -f "$SURF_SESSION_FILE" ]]; then
+    echo -e "  session:     ${GREEN}exists${NC}"
+  else
+    echo -e "  session:     ${YELLOW}not found${NC} (run: surf-session login)"
   fi
 }
 
@@ -280,16 +393,15 @@ cmd_check() {
 # ---------------------------------------------------------------------------
 
 case "${1:---install}" in
-  --list|-l)       cmd_list ;;
   --remove|--uninstall) cmd_remove ;;
-  --check|--status) cmd_check ;;
+  --check|--status)     cmd_check ;;
   --help|-h)
-    echo "Usage: ./install.sh [--install|--list|--remove|--check]"
+    echo "Usage: ./install.sh [--install|--remove|--check|--help]"
     echo ""
-    echo "  --install   Install skills + CLI commands + PATH (default)"
-    echo "  --list      List available skills"
+    echo "  --install   Install restish config + skills + CLI tools (default)"
     echo "  --remove    Uninstall everything"
     echo "  --check     Verify installation status"
+    echo "  --help      Show this help"
     ;;
-  --install|*)     cmd_install ;;
+  --install|*)          cmd_install ;;
 esac

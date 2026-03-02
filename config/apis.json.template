@@ -1,0 +1,16 @@
+{
+  "surf": {
+    "base": "__HERMOD_URL__",
+    "spec_files": ["__HERMOD_URL__/gateway/openapi.json"],
+    "profiles": {
+      "default": {
+        "auth": {
+          "name": "external-tool",
+          "params": {
+            "commandline": "__SURF_AUTH_PATH__"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,102 +1,97 @@
-# surf-core
+# surf-core -- Surf Data CLI
 
-Agent Skills for Crypto data access via the Hermod API Gateway. Follows the [Agent Skills Open Standard](https://github.com/anthropics/agent-skills) — works with Claude Code, OpenAI Codex, GitHub Copilot, Gemini CLI, and other agent platforms.
-
-## Repository Structure
-
-```
-surf-core/
-├── knowledge/          # Domain knowledge (endpoints, patterns, responses)
-│   ├── auth/           # Authentication & session docs
-│   ├── market/         # Market data (prices, futures, options, indicators)
-│   ├── project/        # Project data (overview, TVL, revenue, fees)
-│   ├── token/          # Token data (holders, transfers, flows)
-│   ├── wallet/         # Wallet data (balance, holdings, tx history)
-│   ├── social/         # Social & X/Twitter data (sentiment, users, tweets)
-│   ├── news/           # News data (search, feed, AI summaries)
-│   ├── web/            # Web data (search, fetch)
-│   └── onchain/        # On-chain SQL (ClickHouse databases)
-├── runtimes/           # Executable skill implementations
-│   ├── cli/            # Bash CLI skills
-│   │   ├── lib/        # Shared utilities (config.sh, http.sh)
-│   │   ├── login/      # Google Sign-In, session management
-│   │   ├── hermod-api/ # Fetch, cache, query Hermod OpenAPI specs
-│   │   ├── market/     # Market data — prices, charts, exchanges
-│   │   ├── news/       # Crypto news search with semantic ranking
-│   │   ├── onchain/    # OnchainSQL — query on-chain data via ClickHouse
-│   │   ├── project/    # Project data — overview, TVL, revenue, fees
-│   │   ├── token/      # Token data — holders, transfers, exchange flows
-│   │   ├── wallet/     # Wallet data — balances, holdings, tx history
-│   │   └── social/     # Social & X/Twitter — search, users, tweets
-│   └── http/           # HTTP-based skill implementations
-│       └── market/     # Market data via HTTP
-├── CLAUDE.md
-├── README.md
-└── SKILL-SPEC.md
-```
-
-## Install
-
-```bash
-git clone git@github.com:cyberconnecthq/surf-core.git
-cd surf-core && ./install.sh
-```
-
-This does three things:
-1. Symlinks skills to `~/.claude/skills/` — agent discovery (Claude Code, OpenCode, Gemini CLI)
-2. Symlinks commands to `~/.surf-core/bin/` — direct execution
-3. Adds `~/.surf-core/bin` to PATH — commands work from anywhere
-
-```bash
-./install.sh --check    # Verify installation
-./install.sh --list     # List available skills
-./install.sh --remove   # Uninstall
-```
+restish-powered CLI auto-generated from hermod's OpenAPI 3.1 spec. No hand-coded wrappers -- every hermod endpoint is instantly available as a CLI command.
 
 ## Quick Start
 
 ```bash
-# 1. Login (one-click Google Sign-In)
-surf-session login
+# 1. Install restish (if not already)
+brew install restish          # macOS
+# or: go install github.com/danielgtaylor/restish@latest
 
-# 2. Get BTC price
-surf-market price --ids bitcoin --vs usd
+# 2. Install surf-core
+git clone git@github.com:cyberconnecthq/surf-core.git
+cd surf-core && ./install.sh
 
-# 3. Check Vitalik's wallet
-surf-wallet balance --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
-
-# 4. Search social/X for crypto discussions
-surf-social search --query "ethereum ETF"
-
-# 5. Explore all 273 API endpoints
-surf-api sync
-surf-api search holders
+# 3. Login and go
+surf-session login            # One-click Google Sign-In
+restish surf get-market-price --ids bitcoin --vs-currencies usd
 ```
 
 ## Architecture
 
 ```
 User / Agent
-    │
-    ├── runtimes/cli/login (Google OAuth → JWT session)
-    │
-    ├── runtimes/cli/*  skills (CLI wrappers)
-    │       │
-    │       └── runtimes/cli/lib/ (config.sh + http.sh)
-    │               │
-    │               └── curl + Bearer token
-    │                       │
-    ▼                       ▼
-~/.surf-core/        Hermod Gateway (api.stg.ask.surf)
-session.json              │
-                          ├── JWT verification
-                          ├── Credit deduction
-                          └── Reverse proxy → upstream APIs
-                              (CoinGecko, DeBank, Moralis, etc.)
+    |
+    |--- restish surf <command>
+    |        |
+    |        |--- bin/surf-auth (reads JWT, auto-refreshes)
+    |        |        |
+    |        |        v
+    |        |   ~/.surf-core/session.json
+    |        |
+    |        +--- OpenAPI 3.1 spec (auto-discovered)
+    |                 |
+    |                 v
+    |         Hermod Gateway (api.stg.ask.surf)
+    |              |-- JWT verification
+    |              |-- Credit deduction
+    |              +-- Upstream APIs (CoinGecko, DeBank, etc.)
+    |
+    +--- surf-session login (Google OAuth -> JWT)
 ```
 
-Session is stored at `~/.surf-core/session.json`. Login once, auto-refresh for 30 days.
+**How it works:** `restish` reads hermod's OpenAPI 3.1 spec at startup, generates CLI commands for all endpoints, and uses `bin/surf-auth` as an external auth tool to inject the Bearer token into every request. When hermod adds new APIs, they appear automatically -- no surf-core changes needed.
 
-## Knowledge
+## Directory Structure
 
-The `knowledge/` directory contains domain-specific documentation organized by data category. Each subdirectory includes endpoint references, usage patterns, and example responses that agents can use for context.
+```
+surf-core/
+├── install.sh                 # Install restish config + skills + CLI tools
+├── bin/
+│   └── surf-auth              # restish external auth script (JWT read + refresh)
+├── config/
+│   └── apis.json.template     # restish API config template
+├── login/                     # Google OAuth login
+│   ├── SKILL.md
+│   └── scripts/
+│       ├── surf-session       # Login/check/refresh session
+│       └── _oauth_browser.py  # OAuth browser flow
+├── skills/
+│   └── surf-api/
+│       └── SKILL.md           # Agent skill: all hermod APIs via restish
+├── CLAUDE.md
+└── README.md
+```
+
+## For Agents
+
+Agent-discoverable skills are in `skills/surf-api/SKILL.md`. After `./install.sh`, the skill is symlinked to `~/.claude/skills/surf-api` for automatic discovery by Claude Code and other agent platforms. See the SKILL.md for command examples, cost tables, and the full 87-command reference.
+
+## Session Management
+
+```bash
+surf-session login    # Google Sign-In (opens browser)
+surf-session check    # Verify session is valid
+```
+
+Session is stored at `~/.surf-core/session.json`. Tokens auto-refresh for 30 days. `bin/surf-auth` handles refresh transparently on every `restish surf` call.
+
+## Install Management
+
+```bash
+./install.sh           # Install everything
+./install.sh --check   # Verify installation status
+./install.sh --remove  # Uninstall everything
+./install.sh --help    # Show help
+```
+
+## Adding New Endpoints
+
+No changes needed in surf-core. When hermod adds a new API endpoint:
+
+1. The OpenAPI spec updates automatically
+2. `restish surf list-operations` shows the new command
+3. `restish surf <new-command> --help` shows its parameters
+
+The CLI stays in sync with hermod at all times.
