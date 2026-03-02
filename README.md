@@ -16,6 +16,7 @@ Claude Code skills for Surf platform development.
 | `odin-data-langfuse-trace` | Analyze Langfuse traces for debugging agent execution | AI/Agent engineers |
 | `odin-op-bad-case-audit` | Audit AI bad cases from user feedback with Langfuse traces | AI/Agent engineers |
 | `odin-op-dev-progress` | Daily team progress report from GitHub commits | Team leads |
+| `odin-team-dev` | Team-based development — Goal mode (Architect+Developer+Tester+Pusher) and Parallel mode for M/L scope tasks | All engineers |
 
 ## Setup
 
