@@ -15,7 +15,7 @@ cd surf-core && ./install.sh
 
 # 3. Login and go
 surf-session login            # One-click Google Sign-In
-restish surf get-market-price --ids bitcoin --vs-currencies usd
+surf get-market-price --ids bitcoin --vs-currencies usd
 ```
 
 ## Architecture
@@ -23,7 +23,7 @@ restish surf get-market-price --ids bitcoin --vs-currencies usd
 ```
 User / Agent
     |
-    |--- restish surf <command>
+    |--- surf <command>
     |        |
     |        |--- bin/surf-auth (reads JWT, auto-refreshes)
     |        |        |
@@ -75,7 +75,7 @@ surf-session login    # Google Sign-In (opens browser)
 surf-session check    # Verify session is valid
 ```
 
-Session is stored at `~/.surf-core/session.json`. Tokens auto-refresh for 30 days. `bin/surf-auth` handles refresh transparently on every `restish surf` call.
+Session is stored at `~/.surf-core/session.json`. Tokens auto-refresh for 30 days. `bin/surf-auth` handles refresh transparently on every `surf` call.
 
 ## Install Management
 
@@ -91,7 +91,7 @@ Session is stored at `~/.surf-core/session.json`. Tokens auto-refresh for 30 day
 No changes needed in surf-core. When hermod adds a new API endpoint:
 
 1. The OpenAPI spec updates automatically
-2. `restish surf list-operations` shows the new command
-3. `restish surf <new-command> --help` shows its parameters
+2. `surf list-operations` shows the new command
+3. `surf <new-command> --help` shows its parameters
 
 The CLI stays in sync with hermod at all times.

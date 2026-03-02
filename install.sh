@@ -213,6 +213,18 @@ install_skills() {
 install_bin() {
   mkdir -p "$BIN_DIR"
 
+  # Symlink surf CLI wrapper (surf xxx = restish surf xxx)
+  local surf_src="$SCRIPT_DIR/bin/surf"
+  local surf_dst="$BIN_DIR/surf"
+  if [[ -x "$surf_src" ]]; then
+    if [[ -L "$surf_dst" ]] && [[ "$(readlink "$surf_dst")" == "$surf_src" ]]; then
+      echo -e "  ${DIM}surf already linked${NC}"
+    else
+      ln -sf "$surf_src" "$surf_dst"
+      echo -e "  ${GREEN}+${NC} surf"
+    fi
+  fi
+
   # Symlink surf-session
   local src="$SCRIPT_DIR/login/scripts/surf-session"
   local dst="$BIN_DIR/surf-session"
@@ -298,7 +310,7 @@ cmd_remove() {
 
   # Remove bin symlinks
   if [[ -d "$BIN_DIR" ]]; then
-    for f in "$BIN_DIR"/surf-*; do
+    for f in "$BIN_DIR"/surf "$BIN_DIR"/surf-*; do
       [[ -L "$f" ]] || continue
       echo -e "  ${RED}-${NC} bin: $(basename "$f")"
       rm "$f"

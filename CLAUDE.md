@@ -29,7 +29,7 @@ surf-core/
 brew install restish           # prerequisite
 ./install.sh                   # configures restish + symlinks skills + sets PATH
 surf-session login             # Google Sign-In (one-time)
-restish surf list-operations   # verify: lists all 87 commands
+surf list-operations   # verify: lists all 87 commands
 ```
 
 ## Key Files
@@ -41,12 +41,12 @@ restish surf list-operations   # verify: lists all 87 commands
 
 ## Adding New Endpoints
 
-No surf-core changes needed. Add the endpoint in hermod -- restish discovers it automatically from the updated OpenAPI spec. `restish surf list-operations` will show the new command.
+No surf-core changes needed. Add the endpoint in hermod -- restish discovers it automatically from the updated OpenAPI spec. `surf list-operations` will show the new command.
 
 ## Login Flow
 
 1. `surf-session login` opens browser for Google OAuth
 2. Callback writes JWT tokens to `~/.surf-core/session.json`
-3. `bin/surf-auth` reads the session file on every `restish surf` call
+3. `bin/surf-auth` reads the session file on every `surf` call
 4. If token expires in <5 min, `surf-auth` refreshes via `POST /v2/auth/refresh` to muninn
 5. Fresh Bearer token is injected into the request by restish

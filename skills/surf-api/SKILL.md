@@ -7,7 +7,7 @@ tools:
 
 # Surf Data API (via restish)
 
-Access all hermod data endpoints through `restish surf`. Commands are auto-generated from the OpenAPI 3.1 spec — no manual wrappers needed.
+Access all hermod data endpoints through `surf`. Commands are auto-generated from the OpenAPI 3.1 spec — no manual wrappers needed.
 
 ## Prerequisites
 
@@ -18,10 +18,10 @@ Access all hermod data endpoints through `restish surf`. Commands are auto-gener
 
 ```bash
 # List all available commands
-restish surf list-operations
+surf list-operations
 
 # Get detailed help for any command
-restish surf <command> --help
+surf <command> --help
 ```
 
 ## Quick Examples
@@ -30,89 +30,89 @@ restish surf <command> --help
 
 ```bash
 # Get current prices for assets
-restish surf market-price --ids bitcoin,ethereum,solana
+surf market-price --ids bitcoin,ethereum,solana
 
 # Get top assets by market cap
-restish surf market-top --metric market_cap --limit 10
+surf market-top --metric market_cap --limit 10
 
 # Search market assets by keyword
-restish surf market-search --q "layer 2"
+surf market-search --q "layer 2"
 
 # Get trending tokens
-restish surf market-trending
+surf market-trending
 ```
 
 ### Project (27 commands)
 
 ```bash
 # Search projects by name or ticker
-restish surf project-search --q uniswap
+surf project-search --q uniswap
 
 # Get full project overview
-restish surf project-overview --q bitcoin
+surf project-overview --q bitcoin
 
 # Get project metrics (TVL, volume, etc.)
-restish surf project-metrics --q ethereum --metric tvl
+surf project-metrics --q ethereum --metric tvl
 ```
 
 ### Token (8 commands)
 
 ```bash
 # Get on-chain token metadata
-restish surf token-info --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain ethereum
+surf token-info --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain ethereum
 
 # Get top holders for a token
-restish surf token-holders --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain ethereum --limit 20
+surf token-holders --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain ethereum --limit 20
 ```
 
 ### Wallet (10 commands)
 
 ```bash
 # Get wallet portfolio balance
-restish surf wallet-balance --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+surf wallet-balance --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 
 # Get wallet token holdings
-restish surf wallet-tokens --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+surf wallet-tokens --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ```
 
 ### Social (8 commands)
 
 ```bash
 # Search X/Twitter posts
-restish surf social-search --q "bitcoin ETF"
+surf social-search --q "bitcoin ETF"
 
 # Get social sentiment for a project
-restish surf social-sentiment --q ethereum
+surf social-sentiment --q ethereum
 ```
 
 ### News (5 commands)
 
 ```bash
 # Get latest crypto news feed
-restish surf news-feed --limit 10
+surf news-feed --limit 10
 
 # Search news articles with filters
-restish surf news-search --q "DeFi hack" --sort recency --from 2025-01-01
+surf news-search --q "DeFi hack" --sort recency --from 2025-01-01
 ```
 
 ### Web (2 commands)
 
 ```bash
 # Search the web
-restish surf web-search --q "bitcoin price prediction 2026"
+surf web-search --q "bitcoin price prediction 2026"
 
 # Fetch and parse a URL
-restish surf web-fetch --url "https://ethereum.org"
+surf web-fetch --url "https://ethereum.org"
 ```
 
 ### Onchain (3 commands)
 
 ```bash
 # Execute raw SQL on ClickHouse blockchain data (POST)
-restish surf onchain-sql <<< '{"sql": "SELECT * FROM eth_transactions LIMIT 10"}'
+surf onchain-sql <<< '{"sql": "SELECT * FROM eth_transactions LIMIT 10"}'
 
 # Get transaction details by hash
-restish surf onchain-tx --hash 0xabc123...
+surf onchain-tx --hash 0xabc123...
 ```
 
 ## Command Naming Convention
@@ -157,10 +157,10 @@ Use `-f` to filter response fields:
 
 ```bash
 # Get only the data array
-restish surf market-price --ids bitcoin -f body.data
+surf market-price --ids bitcoin -f body.data
 
 # Output as raw JSON (for piping to jq)
-restish surf market-top --metric market_cap -o json
+surf market-top --metric market_cap -o json
 ```
 
 ## Common Flags
@@ -221,5 +221,5 @@ surf-session check
 surf-session login
 
 # Verify restish can reach the API
-restish surf market-price --ids bitcoin
+surf market-price --ids bitcoin
 ```
