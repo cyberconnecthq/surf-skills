@@ -9,6 +9,11 @@ tools:
 
 Access all hermod data endpoints through `surf`. Commands are auto-generated from the OpenAPI 3.1 spec — no manual wrappers needed.
 
+## Stale Commands?
+
+If a `surf` command from this doc returns "unknown command", the API may have changed.
+Run `bash <surf-core-repo>/bin/surf-update-api` to sync, then re-read this file.
+
 ## Prerequisites
 
 1. Login first (one-time): `surf-session login`
@@ -26,36 +31,55 @@ surf <command> --help
 
 ## Quick Examples
 
-### Market (15 commands)
+### Market (9 commands)
 
 ```bash
 # Get current prices for assets
 surf market-price --ids bitcoin,ethereum,solana
 
-# Get top assets by market cap
-surf market-top --metric market_cap --limit 10
+# Get ETF data
+surf market-etf
 
-# Search market assets by keyword
-surf market-search --q "layer 2"
+# Get futures data
+surf market-futures
 
-# Get trending tokens
-surf market-trending
+# Get DEX volume
+surf market-dex-volume
 ```
 
-### Project (27 commands)
+### Search (8 commands)
 
 ```bash
-# Search projects by name or ticker
-surf project-search --q uniswap
+# Search projects
+surf search-project --q uniswap
 
-# Get full project overview
-surf project-overview --q bitcoin
+# Search tokens
+surf search-token --q "USDT"
+
+# Search news
+surf search-news --q "DeFi hack"
+
+# Search social posts
+surf search-social --q "bitcoin ETF"
+
+# Search the web
+surf search-web --q "bitcoin price prediction 2026"
+
+# Get top market data
+surf search-top-market
+```
+
+### Project (4 commands)
+
+```bash
+# Get project detail
+surf project-detail --q bitcoin
 
 # Get project metrics (TVL, volume, etc.)
 surf project-metrics --q ethereum --metric tvl
 ```
 
-### Token (8 commands)
+### Token (4 commands)
 
 ```bash
 # Get on-chain token metadata
@@ -63,9 +87,12 @@ surf token-info --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain eth
 
 # Get top holders for a token
 surf token-holders --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain ethereum --limit 20
+
+# Get DEX trades for a token
+surf token-dex-trades --address 0xdAC17F958D2ee523a2206206994597C13D831ec7 --chain ethereum
 ```
 
-### Wallet (10 commands)
+### Wallet (7 commands)
 
 ```bash
 # Get wallet portfolio balance
@@ -75,32 +102,26 @@ surf wallet-balance --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 surf wallet-tokens --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ```
 
-### Social (8 commands)
+### Social (3 commands)
 
 ```bash
-# Search X/Twitter posts
-surf social-search --q "bitcoin ETF"
+# Get social tweets
+surf social-tweets --q "bitcoin ETF"
 
-# Get social sentiment for a project
-surf social-sentiment --q ethereum
+# Get user profile
+surf social-user --handle vitalikbuterin
 ```
 
-### News (5 commands)
+### News (1 command)
 
 ```bash
-# Get latest crypto news feed
-surf news-feed --limit 10
-
-# Search news articles with filters
-surf news-search --q "DeFi hack" --sort recency --from 2025-01-01
+# Get AI-curated news
+surf news-ai --limit 10
 ```
 
-### Web (2 commands)
+### Web (1 command)
 
 ```bash
-# Search the web
-surf web-search --q "bitcoin price prediction 2026"
-
 # Fetch and parse a URL
 surf web-fetch --url "https://ethereum.org"
 ```
@@ -122,7 +143,7 @@ Commands are derived from operationId in kebab-case:
 | HTTP Route | Command |
 |---|---|
 | `GET /v1/market/price` | `market-price` |
-| `GET /v1/project/search` | `project-search` |
+| `GET /v1/search/project` | `search-project` |
 | `POST /v1/onchain/sql` | `onchain-sql` |
 
 ## Response Format
@@ -160,7 +181,7 @@ Use `-f` to filter response fields:
 surf market-price --ids bitcoin -f body.data
 
 # Output as raw JSON (for piping to jq)
-surf market-top --metric market_cap -o json
+surf market-price --ids bitcoin -o json
 ```
 
 ## Common Flags
@@ -180,46 +201,34 @@ surf market-top --metric market_cap -o json
 | Market | 1 | All market endpoints |
 | Project | 1 | All project endpoints |
 | Token | 1 | All token endpoints |
-| Wallet | 1-2 | PnL/history = 2 |
+| Wallet | 1-2 | History = 2 |
 | Social | 1 | All social endpoints |
 | News | 1 | All news endpoints |
-| Web | 1 | Search and fetch |
+| Web | 1 | Fetch |
 | Onchain | 5 | SQL queries are expensive |
-| Entity | 0 | Entity resolution is free |
+| Search | 1 | All search endpoints |
 
 ## All Commands Reference
 
-**Entity** (2): `entity-resolve`, `entity-resolve-batch`
+**Market** (9): `market-dex-volume`, `market-etf`, `market-futures`, `market-indicator`, `market-liquidation`, `market-onchain-indicator`, `market-options`, `market-price`, `market-price-metrics`
 
-**Market** (15): `market-etf`, `market-futures`, `market-indicator`, `market-liquidation`, `market-metric`, `market-options`, `market-prediction`, `market-prediction-detail`, `market-price`, `market-price-metrics`, `market-search`, `market-tge`, `market-top`, `market-trending`, `market-volume`
+**Project** (4): `project-detail`, `project-events`, `project-metrics`, `project-tokenomics`
 
-**Project** (27): `project-contracts`, `project-discover`, `project-discover-fdv`, `project-discover-summary`, `project-discover-tweets`, `project-events`, `project-funding`, `project-listings`, `project-metrics`, `project-mindshare`, `project-mindshare-by-tag`, `project-mindshare-geo`, `project-mindshare-lang`, `project-mindshare-leaderboard`, `project-overview`, `project-search`, `project-smart-followers`, `project-smart-followers-events`, `project-smart-followers-history`, `project-smart-followers-members`, `project-social`, `project-tags`, `project-team`, `project-token-info`, `project-tokenomics`, `project-top`, `project-vc-portfolio`
+**Social** (3): `social-tweets`, `social-user`, `social-user-posts`
 
-**Social** (8): `social-follower-geo`, `social-search`, `social-sentiment`, `social-top`, `social-tweets`, `social-user`, `social-user-posts`, `social-user-related`
+**Token** (4): `token-dex-trades`, `token-holders`, `token-info`, `token-transfers`
 
-**Token** (8): `token-holders`, `token-info`, `token-metrics`, `token-search`, `token-top`, `token-top-traders`, `token-transfers`, `token-unlock`
+**Wallet** (7): `wallet-balance`, `wallet-history`, `wallet-labels`, `wallet-labels-batch`, `wallet-nft`, `wallet-tokens`, `wallet-transfers`
 
-**Wallet** (10): `wallet-balance`, `wallet-history`, `wallet-labels`, `wallet-labels-batch`, `wallet-nft`, `wallet-pnl`, `wallet-search`, `wallet-tokens`, `wallet-top`, `wallet-transfers`
+**News** (1): `news-ai`
 
-**News** (5): `news-ai`, `news-ai-detail`, `news-feed`, `news-search`, `news-top`
-
-**Web** (2): `web-fetch`, `web-search`
+**Web** (1): `web-fetch`
 
 **Onchain** (3): `onchain-sql`, `onchain-structured-query`, `onchain-tx`
 
-**Credit** (3): `me-credit-history`, `me-credit-summary`, `me-rate-limits`
+**Credit** (5): `me-booster-packages`, `me-credit-balance`, `me-credit-history`, `me-credit-summary`, `me-rate-limits`
 
-**X Legacy** (4): `x-get-tweets-by-ids`, `x-get-user`, `x-get-user-tweets`, `x-search` — deprecated, prefer `/v1/social/*`
-
-### X Legacy Examples
-
-```bash
-# Search tweets (GET, uses --q flag)
-surf x-search --q "bitcoin ETF"
-
-# Get user profile
-surf x-get-user --handle vitalikbuterin
-```
+**Search** (8): `search-news`, `search-project`, `search-social`, `search-token`, `search-top-market`, `search-top-news`, `search-wallet`, `search-web`
 
 ## Troubleshooting
 

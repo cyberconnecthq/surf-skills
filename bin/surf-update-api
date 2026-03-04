@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+# surf-update-api — Sync local API docs with remote hermod OpenAPI spec
+#
+# Internal tool for agent auto-discovery. NOT exposed in user PATH.
+# Called by agents when they detect SKILL.md is stale vs live spec.
+#
+# Modes:
+#   surf-update-api              # update SKILL.md + clear restish cache
+#   surf-update-api --check      # exit 0 if up-to-date, exit 1 if stale (quiet)
+#   surf-update-api --dry        # show what would change without writing
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SURF_CORE_DIR="$(dirname "$SCRIPT_DIR")"
+SKILL_MD="$SURF_CORE_DIR/skills/surf-api/SKILL.md"
+SURF_SESSION_FILE="${HOME}/.surf-core/session.json"
+
+MODE="update"
+case "${1:-}" in
+  --check) MODE="check" ;;
+  --dry)   MODE="dry" ;;
+esac
+
+# Colors (suppressed in check mode)
+if [[ "$MODE" != "check" ]]; then
+  GREEN='\033[0;32m'; YELLOW='\033[0;33m'; CYAN='\033[0;36m'
+  RED='\033[0;31m'; DIM='\033[2m'; NC='\033[0m'
+else
+  GREEN=''; YELLOW=''; CYAN=''; RED=''; DIM=''; NC=''
+fi
+
+# Restish config dir (OS-dependent)
+case "$(uname)" in
+  Darwin) RESTISH_DIR="$HOME/Library/Application Support/restish" ;;
+  *)      RESTISH_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/restish" ;;
+esac
+
+# --- Read session for hermod URL and token ---
+
+hermod_url=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(data.get('hermod_url', 'https://api.ask.surf/gateway'))
+" "$SURF_SESSION_FILE" 2>/dev/null) || hermod_url="https://api.ask.surf/gateway"
+
+token=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+t = data.get('hermod_token', '') or data.get('access_token', '')
+if not t: sys.exit(1)
+print(t)
+" "$SURF_SESSION_FILE" 2>/dev/null) || {
+  [[ "$MODE" == "check" ]] && exit 2
+  echo -e "${RED}Error:${NC} No session. Run: surf-session login"
+  exit 1
+}
+
+# --- Fetch latest OpenAPI spec ---
+
+[[ "$MODE" != "check" ]] && echo -e "${CYAN}[1/3]${NC} Fetching OpenAPI spec from ${hermod_url}/openapi.json ..."
+spec=$(curl -sf --max-time 15 \
+  -H "Authorization: Bearer $token" \
+  "${hermod_url}/openapi.json" 2>/dev/null) || \
+spec=$(curl -sf --max-time 15 "${hermod_url}/openapi.json" 2>/dev/null) || {
+  [[ "$MODE" == "check" ]] && exit 2
+  echo -e "  ${RED}Error:${NC} Failed to fetch OpenAPI spec. Check network or run: surf-session login"
+  exit 1
+}
+[[ "$MODE" != "check" ]] && echo -e "  ${GREEN}fetched${NC} ($(printf '%s' "$spec" | wc -c | tr -d ' ') bytes)"
+
+# --- Check mode: compare local vs remote operation count ---
+
+if [[ "$MODE" == "check" ]]; then
+  spec_file=$(mktemp)
+  printf '%s' "$spec" > "$spec_file"
+  trap 'rm -f "$spec_file"' EXIT
+
+  python3 - "$spec_file" "$SKILL_MD" <<'PYEOF'
+import json, sys, re
+
+with open(sys.argv[1]) as f:
+    spec = json.load(f)
+
+# Count operations in remote spec
+remote_ops = set()
+for path, methods in spec.get("paths", {}).items():
+    for m in ("get", "post", "put", "delete", "patch"):
+        if m in methods:
+            op = methods[m].get("operationId", "")
+            if op:
+                remote_ops.add(op)
+
+# Extract operations listed in SKILL.md
+with open(sys.argv[2]) as f:
+    content = f.read()
+
+local_ops = set()
+pattern = r"## All Commands Reference\n\n((?:\*\*.*?\n\n)+)"
+match = re.search(pattern, content)
+if match:
+    import re as re2
+    for cmd in re2.findall(r"`([a-z][\w-]+)`", match.group(1)):
+        local_ops.add(cmd)
+
+if remote_ops == local_ops:
+    print(f"up-to-date ({len(remote_ops)} commands)")
+    sys.exit(0)
+else:
+    added = remote_ops - local_ops
+    removed = local_ops - remote_ops
+    parts = []
+    if added:
+        parts.append(f"+{len(added)} new")
+    if removed:
+        parts.append(f"-{len(removed)} removed")
+    print(f"stale ({', '.join(parts)})")
+    sys.exit(1)
+PYEOF
+  exit $?
+fi
+
+# --- Update mode: clear restish cache ---
+
+echo -e "${CYAN}[2/3]${NC} Clearing restish cache ..."
+removed=0
+for f in "$RESTISH_DIR"/surf-openapi.json "$RESTISH_DIR"/hermod-openapi.json; do
+  if [[ -f "$f" ]]; then
+    if [[ "$MODE" == "dry" ]]; then
+      echo -e "  ${YELLOW}would remove${NC} $(basename "$f")"
+    else
+      rm "$f"
+      echo -e "  ${GREEN}removed${NC} $(basename "$f")"
+    fi
+    ((removed++)) || true
+  fi
+done
+[[ $removed -eq 0 ]] && echo -e "  ${DIM}clean${NC} (no cached spec)"
+
+# --- Update mode: patch SKILL.md command reference ---
+
+echo -e "${CYAN}[3/3]${NC} Updating SKILL.md command reference ..."
+spec_file=$(mktemp)
+printf '%s' "$spec" > "$spec_file"
+trap 'rm -f "$spec_file"' EXIT
+
+DRY_FLAG="false"
+[[ "$MODE" == "dry" ]] && DRY_FLAG="true"
+
+python3 - "$spec_file" "$SKILL_MD" "$DRY_FLAG" <<'PYEOF'
+import json, sys, re
+from collections import defaultdict
+
+with open(sys.argv[1]) as f:
+    spec = json.load(f)
+skill_md_path = sys.argv[2]
+dry_run = sys.argv[3] == "true"
+
+paths = spec.get("paths", {})
+
+# Extract operationIds grouped by domain prefix
+ops_by_domain = defaultdict(list)
+total = 0
+for path in sorted(paths):
+    for method in ("get", "post", "put", "delete", "patch"):
+        if method not in paths[path]:
+            continue
+        op_id = paths[path][method].get("operationId", "")
+        if not op_id:
+            continue
+        total += 1
+        parts = op_id.split("-")
+        domain = parts[0] if len(parts) > 1 else op_id
+        ops_by_domain[domain].append(op_id)
+
+# Domain display order and labels
+domain_config = [
+    ("entity", "Entity", ""),
+    ("market", "Market", ""),
+    ("project", "Project", ""),
+    ("social", "Social", ""),
+    ("token", "Token", ""),
+    ("wallet", "Wallet", ""),
+    ("news", "News", ""),
+    ("web", "Web", ""),
+    ("onchain", "Onchain", ""),
+    ("me", "Credit", ""),
+    ("search", "Search", ""),
+    ("x", "X Legacy", " — deprecated, prefer `/v1/social/*`"),
+]
+known_domains = {d[0] for d in domain_config}
+
+ref_lines = ["## All Commands Reference", ""]
+for domain_key, label, suffix in domain_config:
+    if domain_key not in ops_by_domain:
+        continue
+    cmds = sorted(ops_by_domain[domain_key])
+    ref_lines.append(
+        f'**{label}** ({len(cmds)}): {", ".join(f"`{c}`" for c in cmds)}{suffix}'
+    )
+    ref_lines.append("")
+
+# Append any new domains not in the predefined config
+for domain_key in sorted(ops_by_domain):
+    if domain_key not in known_domains:
+        cmds = sorted(ops_by_domain[domain_key])
+        ref_lines.append(
+            f'**{domain_key.capitalize()}** ({len(cmds)}): {", ".join(f"`{c}`" for c in cmds)}'
+        )
+        ref_lines.append("")
+
+ref_text = "\n".join(ref_lines)
+
+# Read and patch SKILL.md
+with open(skill_md_path) as f:
+    content = f.read()
+
+# Match the section: "## All Commands Reference\n\n" followed by **Bold** (...) lines
+pattern = r"## All Commands Reference\n\n(?:\*\*.*?\n\n)+"
+match = re.search(pattern, content)
+if not match:
+    print("  \033[0;31mError:\033[0m Could not find '## All Commands Reference' section")
+    sys.exit(1)
+
+old_text = match.group(0).strip()
+new_text = ref_text.strip()
+
+if old_text == new_text:
+    print("  \033[2malready up to date\033[0m")
+    sys.exit(0)
+
+if dry_run:
+    old_lines = set(old_text.split("\n"))
+    new_lines = set(new_text.split("\n"))
+    for line in sorted(new_lines - old_lines):
+        if line.strip():
+            print(f"  \033[0;32m+ {line}\033[0m")
+    for line in sorted(old_lines - new_lines):
+        if line.strip():
+            print(f"  \033[0;31m- {line}\033[0m")
+else:
+    content = content[: match.start()] + ref_text + "\n" + content[match.end() :]
+    with open(skill_md_path, "w") as f:
+        f.write(content)
+    print(
+        f"  \033[0;32mupdated\033[0m {total} commands across {len(ops_by_domain)} domains"
+    )
+PYEOF
+
+echo ""
+if [[ "$MODE" == "dry" ]]; then
+  echo -e "${YELLOW}Dry run complete.${NC} Run without --dry to apply changes."
+else
+  echo -e "${GREEN}Done.${NC} Run 'surf list-operations' to verify."
+fi
