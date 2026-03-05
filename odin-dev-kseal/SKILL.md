@@ -120,6 +120,8 @@ Outputs the encrypted value. Manually paste it into `encryptedData` in `sealed-s
 
 ## Important Notes
 
+- **ALWAYS decrypt before sealing**: The `secrets` file is a local cache that can become stale. Before any seal operation, ALWAYS run `kseal-decrypt.py` first to get fresh secrets from the cluster. The seal script will warn if the file is older than 5 minutes, but do not rely on this alone — make it a habit.
+  - **Why this matters**: If someone updated `sealed-secret.yaml` directly (e.g., unifying JWT keys across services), the local `secrets` file won't reflect that change. Re-sealing from a stale `secrets` file will silently revert those updates.
 - **Always use `--context`**: Every kubectl command must specify `--context stg-app` or `--context prd-app` for the correct cluster.
 - **Scope binding**: SealedSecrets are bound to a specific `name` + `namespace` pair. You cannot copy a sealed-secret.yaml to a different namespace without re-sealing.
 - **Re-seal everything**: When changing any key, it's safest to re-seal the entire `secrets` file rather than patching individual values with `--raw`.

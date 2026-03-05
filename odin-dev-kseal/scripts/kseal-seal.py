@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 import yaml
 
@@ -23,6 +24,7 @@ GITOPS_ROOT = "/Users/peng/Workspace/k8s/gitops"
 DEFAULT_CONTEXT = "stg-app"
 CONTROLLER_NAME = "sealed-secrets-controller"
 CONTROLLER_NS = "kube-system"
+STALE_THRESHOLD_SECONDS = 300  # 5 minutes
 
 
 def resolve_app_path(path_arg):
@@ -36,6 +38,28 @@ def resolve_app_path(path_arg):
     sys.exit(1)
 
 
+def check_secrets_freshness(secrets_path):
+    """Warn if the secrets file is stale (not recently decrypted from cluster)."""
+    mtime = os.path.getmtime(secrets_path)
+    age_seconds = time.time() - mtime
+    if age_seconds > STALE_THRESHOLD_SECONDS:
+        age_min = int(age_seconds / 60)
+        if age_min >= 60:
+            age_str = f"{age_min // 60}h {age_min % 60}m"
+        else:
+            age_str = f"{age_min}m"
+        print(f"WARNING: secrets file is {age_str} old (last modified: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))})", file=sys.stderr)
+        print("The file may be stale. Run kseal-decrypt.py first to get fresh secrets from the cluster.", file=sys.stderr)
+        print("Sealing a stale file can overwrite values that were updated directly in sealed-secret.yaml.", file=sys.stderr)
+        try:
+            answer = input("Continue anyway? [y/N] ").strip().lower()
+        except EOFError:
+            answer = ""
+        if answer != "y":
+            print("Aborted. Run kseal-decrypt.py first.", file=sys.stderr)
+            sys.exit(1)
+
+
 def read_secrets_file(app_path):
     """Read and validate the plaintext secrets file."""
     secrets_path = os.path.join(app_path, "secrets")
@@ -43,6 +67,8 @@ def read_secrets_file(app_path):
         print(f"ERROR: No secrets file found at {secrets_path}", file=sys.stderr)
         print("Run kseal-decrypt.py first to fetch current secrets from cluster.", file=sys.stderr)
         sys.exit(1)
+
+    check_secrets_freshness(secrets_path)
 
     with open(secrets_path) as f:
         content = f.read()
