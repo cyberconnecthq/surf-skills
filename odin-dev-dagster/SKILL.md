@@ -44,6 +44,23 @@ Requirements:
 
 Script: `scripts/dagster-query`
 
+### Job Runs (Primary Command)
+
+**Start from a job name** — shows job overview (location, sensor, schedule) + recent runs. This is the main entry point.
+
+```bash
+# Show job overview + recent runs
+scripts/dagster-query --job-runs daily_base_ingestion
+
+# Filter by status
+scripts/dagster-query --job-runs daily_base_ingestion --status FAILURE
+
+# More results
+scripts/dagster-query --job-runs daily_base_ingestion --limit 20
+```
+
+Output includes: run ID, status, who launched it (sensor name or "Manual"), created time, duration. If the job name doesn't match exactly, suggests similar job names.
+
 ### View Code Locations & Jobs
 
 ```bash
@@ -51,22 +68,20 @@ Script: `scripts/dagster-query`
 scripts/dagster-query --locations
 ```
 
-### List Runs
+### List Runs (Global View)
 
 ```bash
-# Recent runs (default: 10)
+# Recent runs across all jobs (default: 10)
 scripts/dagster-query --runs
 
 # Filter by status
 scripts/dagster-query --runs --status FAILURE
-scripts/dagster-query --runs --status STARTED
-scripts/dagster-query --runs --status SUCCESS
 
-# Filter by job name (substring match)
-scripts/dagster-query --runs --job helios
+# Filter by job name (exact match, server-side)
+scripts/dagster-query --runs --job daily_base_ingestion
 
-# More results
-scripts/dagster-query --runs --limit 20 --status FAILURE
+# Combined filters
+scripts/dagster-query --runs --job daily_base_ingestion --status FAILURE --limit 20
 ```
 
 ### Analyze a Run (Detail + Logs)
@@ -200,28 +215,31 @@ scripts/dagster-query --sensor-on <sensor-name> --location odin-prod
 
 ## Debugging Workflow
 
-### 1. Check what's failing
+**Always start from the job name**, not from global runs.
+
+### 1. Check a job's recent runs
 
 ```bash
-scripts/dagster-query --runs --status FAILURE --limit 5
+scripts/dagster-query --job-runs <job-name>
+# e.g. scripts/dagster-query --job-runs daily_base_ingestion
 ```
 
-### 2. Get failure details
+### 2. See only failures for that job
+
+```bash
+scripts/dagster-query --job-runs <job-name> --status FAILURE
+```
+
+### 3. Get failure details for a specific run
 
 ```bash
 scripts/dagster-query --run-detail <run-id>
 ```
 
-### 3. Get full failure logs
+### 4. Get full failure logs
 
 ```bash
 scripts/dagster-query --run-logs <run-id> --failures-only
-```
-
-### 4. Check if it's a recurring issue
-
-```bash
-scripts/dagster-query --runs --job <job-name> --limit 10
 ```
 
 ### 5. Check pod-level issues (OOM, eviction)

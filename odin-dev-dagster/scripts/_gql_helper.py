@@ -252,6 +252,138 @@ def _print_logs(run_id, log_limit, failures_only, step_filter=None):
             print()
 
 
+def cmd_job_runs(job_name, limit=10, status_filter=None):
+    """Show job overview + recent runs — the primary entry point for job investigation."""
+
+    # 1. Find job location and associated sensors/schedules
+    r = gql("""query {
+        workspaceOrError {
+            ... on Workspace {
+                locationEntries {
+                    name
+                    locationOrLoadError {
+                        ... on RepositoryLocation {
+                            repositories {
+                                name
+                                jobs { name }
+                                schedules {
+                                    name
+                                    scheduleState { status }
+                                    pipelineName
+                                }
+                                sensors {
+                                    name
+                                    sensorState { status }
+                                    targets { pipelineName }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }""")
+
+    entries = r["data"]["workspaceOrError"]["locationEntries"]
+    job_loc = None
+    job_repo = None
+    job_schedules = []
+    job_sensors = []
+
+    for loc in entries:
+        loe = loc.get("locationOrLoadError", {})
+        for repo in loe.get("repositories", []):
+            for job in repo.get("jobs", []):
+                if job["name"] == job_name:
+                    job_loc = loc["name"]
+                    job_repo = repo["name"]
+                    for s in repo.get("schedules", []):
+                        if s.get("pipelineName") == job_name:
+                            job_schedules.append(s)
+                    for s in repo.get("sensors", []):
+                        targets = s.get("targets") or []
+                        for t in targets:
+                            if t.get("pipelineName") == job_name:
+                                job_sensors.append(s)
+
+    if not job_loc:
+        # Try substring match
+        matches = []
+        for loc in entries:
+            loe = loc.get("locationOrLoadError", {})
+            for repo in loe.get("repositories", []):
+                for job in repo.get("jobs", []):
+                    if job_name.lower() in job["name"].lower():
+                        matches.append(f"  {loc['name']}/{job['name']}")
+        if matches:
+            print(f"Job '{job_name}' not found. Did you mean:", file=sys.stderr)
+            for m in matches:
+                print(m, file=sys.stderr)
+        else:
+            print(f"Job '{job_name}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    # Print job header
+    print(f"Job:      {job_loc}/{job_name}")
+    for s in job_schedules:
+        status = s.get("scheduleState", {}).get("status", "?")
+        icon = "ON" if status == "RUNNING" else "OFF"
+        print(f"Schedule: [{icon}] {s['name']}")
+    for s in job_sensors:
+        status = s.get("sensorState", {}).get("status", "?")
+        icon = "ON" if status == "RUNNING" else "OFF"
+        print(f"Sensor:   [{icon}] {s['name']}")
+    print()
+
+    # 2. Query recent runs for this job (server-side filter)
+    filter_parts = [f'pipelineName: "{job_name}"']
+    if status_filter:
+        filter_parts.append(f"statuses: [{status_filter}]")
+    filter_str = ", ".join(filter_parts)
+
+    r = gql("""query {
+        runsOrError(filter: {%s}, limit: %d) {
+            ... on Runs {
+                count
+                results {
+                    runId jobName status startTime endTime
+                    tags { key value }
+                }
+            }
+        }
+    }""" % (filter_str, limit))
+
+    runs_data = r["data"]["runsOrError"]
+    results = runs_data.get("results", [])
+    total = runs_data.get("count", 0)
+
+    status_icons = {
+        "SUCCESS": " OK ", "FAILURE": "FAIL", "STARTED": " RUN",
+        "CANCELED": "CNCL", "QUEUED": "WAIT", "CANCELING": "STOP",
+        "STARTING": "INIT",
+    }
+
+    print(f"Runs (showing {len(results)} of {total}):")
+    print(f"{'ID':<10}  {'Status':>6}  {'Launched by':<24}  {'Created':<14}  {'Duration':>8}")
+    print("-" * 72)
+
+    for run in results:
+        run_id = run["runId"][:8]
+        status = status_icons.get(run["status"], run["status"][:4])
+
+        launched_by = "Manual"
+        for tag in run.get("tags", []):
+            if tag["key"] == "dagster/sensor_name":
+                launched_by = tag["value"]
+            elif tag["key"] == "dagster/schedule_name":
+                launched_by = tag["value"]
+
+        created = ts_fmt(run.get("startTime"), "%m-%d %H:%M")
+        duration = duration_fmt(run.get("startTime"), run.get("endTime"))
+
+        print(f"{run_id:<10}  [{status}]  {launched_by:<24}  {created:<14}  {duration:>8}")
+
+
 def cmd_job_info(location, job_name, repository="__repository__"):
     """Show job config schema, presets, tags — everything needed before launching."""
     r = gql(
@@ -382,8 +514,9 @@ def cmd_launch(location, job_name, repository="__repository__",
     if preset:
         params_parts.append(f'preset: "{preset}"')
     elif run_config:
-        # run_config should be a JSON string
-        escaped = run_config.replace('\\', '\\\\').replace('"', '\\"')
+        # run_config is a JSON string that needs to be escaped for GraphQL string literal
+        # Escape backslashes and double quotes
+        escaped = run_config.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
         params_parts.append(f'runConfigData: "{escaped}"')
 
     params = ", ".join(params_parts)
@@ -718,7 +851,22 @@ if __name__ == "__main__":
         if arg == "--step" and i + 1 < len(sys.argv):
             step_filter = sys.argv[i + 1]
 
-    if cmd == "run-detail":
+    if cmd == "job-runs":
+        job_name = sys.argv[2]
+        limit = 10
+        status_filter = None
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] == "--limit" and i + 1 < len(sys.argv):
+                limit = int(sys.argv[i + 1])
+                i += 2
+            elif sys.argv[i] == "--status" and i + 1 < len(sys.argv):
+                status_filter = sys.argv[i + 1]
+                i += 2
+            else:
+                i += 1
+        cmd_job_runs(job_name, limit, status_filter)
+    elif cmd == "run-detail":
         run_id = sys.argv[2]
         log_limit = int(sys.argv[3]) if len(sys.argv) > 3 else 50
         cmd_run_detail(run_id, log_limit, step_filter)

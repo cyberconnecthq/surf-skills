@@ -17,9 +17,12 @@ Usage: dagster-query <command> [options]
 Commands:
   --check-setup             Verify kubectl access and Dagster connectivity
   --locations               List code locations and their jobs
-  --runs [options]          List recent runs
+  --job-runs <job-name>     Show job overview + recent runs (primary command)
     --status <status>       Filter: SUCCESS, FAILURE, STARTED, CANCELED, QUEUED
-    --job <name>            Filter by job name (substring match)
+    --limit <n>             Max results (default: 10)
+  --runs [options]          List recent runs (global view)
+    --status <status>       Filter: SUCCESS, FAILURE, STARTED, CANCELED, QUEUED
+    --job <name>            Filter by job name (exact match, server-side)
     --limit <n>             Max results (default: 10)
   --run-detail <run-id>     Show run detail + step stats + log events
     --log-limit <n>         Number of log events (default: 50)
@@ -195,6 +198,9 @@ list_runs() {
   if [[ -n "$status_filter" ]]; then
     filter_parts+=("statuses: [${status_filter}]")
   fi
+  if [[ -n "$job_filter" ]]; then
+    filter_parts+=("pipelineName: \\\"${job_filter}\\\"")
+  fi
   local filter=""
   if [[ ${#filter_parts[@]} -gt 0 ]]; then
     filter="filter: { $(IFS=', '; echo "${filter_parts[*]}") }, "
@@ -213,10 +219,6 @@ data = json.load(sys.stdin)
 runs_data = data['data']['runsOrError']
 count = runs_data.get('count', 0)
 results = runs_data.get('results', [])
-
-job_filter = '$job_filter'.lower()
-if job_filter:
-    results = [r for r in results if job_filter in r['jobName'].lower()]
 
 print(f'Total runs: {count}  (showing {len(results)})')
 print()
@@ -248,6 +250,24 @@ for r in results:
     run_id_short = r['runId'][:8]
     print(f'[{icon:>4}] {start}  {duration:>5}  {loc}/{r[\"jobName\"]}  ({run_id_short})')
 "
+}
+
+job_runs() {
+  local pod job_name="$1" extra_args=()
+  pod=$(find_webserver_pod)
+  shift
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --status) extra_args+=(--status "$2"); shift 2 ;;
+      --limit) extra_args+=(--limit "$2"); shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  cat "$script_dir/_gql_helper.py" | run_py "$pod" - job-runs "$job_name" ${extra_args[@]+"${extra_args[@]}"}
 }
 
 run_detail() {
@@ -572,6 +592,9 @@ fi
 case "$1" in
   --check-setup) check_setup ;;
   --locations) list_locations ;;
+  --job-runs)
+    if [[ -z "${2:-}" ]]; then echo "Error: job name required"; exit 1; fi
+    shift; job_runs "$@" ;;
   --runs) shift; list_runs "$@" ;;
   --run-detail)
     if [[ -z "${2:-}" ]]; then echo "Error: run ID required"; exit 1; fi
