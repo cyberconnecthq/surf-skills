@@ -181,6 +181,50 @@ token_expiry_human() {
 }
 
 # ---------------------------------------------------------------------------
+# Auto-refresh via crontab (every 50 min)
+# ---------------------------------------------------------------------------
+
+CRON_MARKER="# surf-session-auto-refresh"
+
+# Resolve the absolute path to this script for the cron entry
+_self_path() {
+  _resolve_path "${BASH_SOURCE[0]}"
+}
+
+enable_auto_refresh() {
+  local self
+  self=$(_self_path)
+
+  # Remove existing entry first (idempotent)
+  local existing
+  existing=$(crontab -l 2>/dev/null || true)
+  local cleaned
+  cleaned=$(echo "$existing" | grep -v "$CRON_MARKER" || true)
+
+  # Add new entry: every 50 minutes
+  local new_entry="*/50 * * * * ${self} refresh >/dev/null 2>&1 ${CRON_MARKER}"
+  if [[ -z "$cleaned" ]]; then
+    echo "$new_entry" | crontab -
+  else
+    printf '%s\n%s\n' "$cleaned" "$new_entry" | crontab -
+  fi
+}
+
+disable_auto_refresh() {
+  local existing
+  existing=$(crontab -l 2>/dev/null || true)
+  if [[ -z "$existing" ]]; then return 0; fi
+
+  local cleaned
+  cleaned=$(echo "$existing" | grep -v "$CRON_MARKER" || true)
+  if [[ -z "$cleaned" ]]; then
+    crontab -r 2>/dev/null || true
+  else
+    echo "$cleaned" | crontab -
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Login: Browser-based Google Sign-In (one-click)
 # ---------------------------------------------------------------------------
 
@@ -232,8 +276,10 @@ cmd_login() {
   [[ -z "$access_token" ]] && _fail "No token in response"
 
   save_session "$access_token" "$hermod_url" "$refresh_token"
+  enable_auto_refresh
 
   printf "${_GREEN}Login successful${_NC}\n"
+  printf "${_GREEN}Auto-refresh enabled (every 50 min via crontab)${_NC}\n"
 }
 
 # ---------------------------------------------------------------------------
@@ -463,9 +509,10 @@ cmd_credits() {
 }
 
 cmd_logout() {
+  disable_auto_refresh
   if [[ -f "$SESSION_FILE" ]]; then
     rm -f "$SESSION_FILE"
-    echo '{"status": "logged_out", "message": "Session removed"}'
+    echo '{"status": "logged_out", "message": "Session removed, auto-refresh disabled"}'
   else
     echo '{"status": "no_session", "message": "No session file found"}'
   fi
