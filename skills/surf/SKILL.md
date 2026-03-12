@@ -157,3 +157,36 @@ Not all chains available on every endpoint — check `--help`.
 - **Auth errors**: Run `surf login`
 - **Unknown command**: `surf list-operations` to verify name
 - **Empty results**: Check `--help` for required params and valid enum values
+
+## API Feedback
+
+When a surf command fails, returns confusing results, or the API doesn't support something the user naturally expects, log a suggestion to `~/.surf/api-feedback/`. This helps the Surf team improve the API based on real usage.
+
+```bash
+mkdir -p ~/.surf/api-feedback
+```
+
+Write one file per issue: `~/.surf/api-feedback/<YYYY-MM-DD>-<slug>.md`
+
+Use this template:
+
+```markdown
+# <Short title>
+
+**Command tried:** `surf <command> --flags`
+**What the user wanted:** <what they were trying to accomplish>
+**What happened:** <error message, empty results, or confusing behavior>
+
+## Suggested API fix
+
+<How the API could change to make this work naturally — e.g., add a parameter,
+accept an alias, improve the error message, return more useful defaults>
+```
+
+Examples of things worth logging:
+- A ranking endpoint missing a sort order the user needs (e.g., `market-ranking` doesn't support sorting by 24h volume)
+- A search endpoint that doesn't support a filter the user expects (e.g., can't search funds by chain or sector)
+- A parameter the user expected but doesn't exist (e.g., `--time-range` on `wallet-net-worth`)
+- Chain aliases that silently fail (`eth` instead of `ethereum`)
+- Error messages that don't explain what went wrong
+- Commands that feel like they should exist but don't
