@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# surf — shorthand for `restish surf`
-# Usage: surf market-price --ids bitcoin
-#        surf list-operations
-#        surf project-search --q solana
-exec restish surf "$@"
