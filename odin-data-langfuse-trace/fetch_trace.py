@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["langfuse"]
+# dependencies = ["langfuse>=2.0,<4.0"]
 # ///
 """
 Fetch Langfuse trace data and save to local files for analysis.
@@ -13,7 +13,7 @@ Usage:
     uv run fetch_trace.py --clean [days]                    # Delete traces older than N days (default: 7)
     uv run fetch_trace.py --clean-all                       # Delete all cached traces
 
-Config priority: AWS Secrets Manager > env vars > ~/.config/langfuse/config.json.
+Config priority: env vars > ~/.config/langfuse/config.json > AWS Secrets Manager.
 
 Output structure (single trace):
     /tmp/trace_analysis/<trace_id>/
@@ -51,14 +51,42 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# -- Proxy sanitization (must run before any HTTP library is imported) --------
+# SOCKS proxy: httpx crashes without the socksio package — always remove.
+# HTTP proxy: internal hosts (*.ask.surf) are reachable directly — proxying
+# causes timeouts or SSL errors.
+
+_INTERNAL_HOSTS = (".ask.surf", ".svc.cluster.local", "localhost", "127.0.0.1")
+
+# Always nuke SOCKS proxy
+for _var in ("all_proxy", "ALL_PROXY"):
+    os.environ.pop(_var, None)
+
+# Pre-load LANGFUSE_HOST from config file to decide on HTTP proxy
+_CONFIG_PATH = Path.home() / ".config" / "langfuse" / "config.json"
+_host_hint = os.environ.get("LANGFUSE_HOST", "")
+if not _host_hint and _CONFIG_PATH.exists():
+    try:
+        _host_hint = json.loads(_CONFIG_PATH.read_text()).get("langfuse_host", "")
+    except Exception:
+        pass
+if any(h in _host_hint for h in _INTERNAL_HOSTS):
+    for _var in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+        os.environ.pop(_var, None)
+
+del _var, _host_hint  # cleanup module namespace
+# -----------------------------------------------------------------------------
+
 from langfuse import Langfuse
 
 _langfuse = None
-_CONFIG_PATH = Path.home() / ".config" / "langfuse" / "config.json"
 
 
 def _load_from_aws():
-    """Load Langfuse credentials from AWS Secrets Manager via AWS CLI."""
+    """Load Langfuse credentials from AWS Secrets Manager via AWS CLI.
+
+    Only sets env vars that are not already set (lowest priority source).
+    """
     try:
         result = subprocess.run(
             ["aws", "secretsmanager", "get-secret-value",
@@ -75,24 +103,39 @@ def _load_from_aws():
             "base_url": "LANGFUSE_HOST",
         }
         for secret_key, env_var in key_map.items():
-            if secret_key in secret:
+            if secret_key in secret and env_var not in os.environ:
                 os.environ[env_var] = secret[secret_key]
     except Exception:
         pass
 
 
 def _load_config():
-    """Load Langfuse credentials from AWS Secrets Manager, then config file as fallback."""
-    _load_from_aws()
-    if not _CONFIG_PATH.exists():
+    """Load Langfuse credentials. Priority: env vars > config file > AWS Secrets Manager.
+
+    Config file takes precedence over AWS because it represents explicit local
+    intent, while AWS secrets may be stale (e.g. after a cloud-to-self-hosted migration).
+    """
+    _REQUIRED_KEYS = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST")
+
+    # 1. If all env vars already set, nothing to do
+    if all(k in os.environ for k in _REQUIRED_KEYS):
         return
-    try:
-        config = json.loads(_CONFIG_PATH.read_text())
-        for key in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"):
-            if key not in os.environ and key.lower() in config:
-                os.environ[key] = config[key.lower()]
-    except (json.JSONDecodeError, KeyError):
-        pass
+
+    # 2. Try config file (local, explicit user config)
+    if _CONFIG_PATH.exists():
+        try:
+            config = json.loads(_CONFIG_PATH.read_text())
+            for key in _REQUIRED_KEYS:
+                if key not in os.environ and key.lower() in config:
+                    os.environ[key] = config[key.lower()]
+        except (json.JSONDecodeError, KeyError):
+            pass
+        # If config file provided enough keys, skip AWS
+        if all(k in os.environ for k in _REQUIRED_KEYS[:2]):
+            return
+
+    # 3. AWS Secrets Manager (auto-discovered, may be stale after migration)
+    _load_from_aws()
 
 
 def _get_client():

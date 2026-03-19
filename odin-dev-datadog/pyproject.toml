@@ -1,0 +1,8 @@
+[project]
+name = "odin-dev-datadog"
+version = "0.1.0"
+description = "Datadog log viewer for Surf platform production debugging"
+requires-python = ">=3.13"
+dependencies = [
+    "datadog-api-client>=2.52.0",
+]

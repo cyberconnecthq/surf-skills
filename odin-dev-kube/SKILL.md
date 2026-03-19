@@ -9,15 +9,38 @@ Manage deployments, rollouts, sealed secrets, and debug pods on EKS.
 
 ## Cluster Access
 
-**EKS cluster**: `prd-app` in `us-west-2` (account `996435522985`)
-**Namespace**: `dagster`
+Two EKS clusters in `us-west-2` (account `996435522985`), configured as kubectl contexts:
+
+| Environment | Context Name | EKS Cluster |
+|-------------|-------------|-------------|
+| **Staging** | `stg` | `stg-app` |
+| **Production** | `prd` | `prd-app` |
+
+### IMPORTANT: Environment Selection
+
+**Before running ANY kubectl command, you MUST determine the target environment.**
+
+1. If the user explicitly says "stg", "staging", "prd", "prod", or "production" → use that environment.
+2. If the context of the conversation implies an environment (e.g., debugging a prod incident, testing in staging) → use that environment.
+3. **If the environment is ambiguous or not specified → ASK the user which environment they mean. Do NOT assume.**
+
+### Using --context (REQUIRED)
+
+**Always use `--context` flag** instead of switching the global kubeconfig context. This avoids side effects on other terminal sessions.
 
 ```bash
-# Update kubeconfig (one-time setup)
-aws eks update-kubeconfig --region us-west-2 --name prd-app
+# Staging
+kubectl --context stg get pods -n dagster | head -5
 
-# Verify access
-kubectl get pods -n dagster | head -5
+# Production
+kubectl --context prd get pods -n dagster | head -5
+```
+
+### Kubeconfig Setup (one-time)
+
+```bash
+aws eks update-kubeconfig --region us-west-2 --name stg-app --alias stg
+aws eks update-kubeconfig --region us-west-2 --name prd-app --alias prd
 ```
 
 **IP whitelisting required**: EKS public access CIDRs are managed in `cybertino/gitops` Terraform. If `kubectl` times out, your IP needs whitelisting.

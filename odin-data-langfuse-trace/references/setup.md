@@ -9,11 +9,17 @@
 
 Credentials are resolved in this order (first found wins per key):
 
-1. **AWS Secrets Manager** — secret `langfuse/surf-ai/bot` (requires `aws` CLI configured via `aws configure` or IAM role). Always takes priority when available.
-2. **Environment variables** — `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
-3. **Config file** — `~/.config/langfuse/config.json`
+1. **Environment variables** — `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+2. **Config file** — `~/.config/langfuse/config.json`
+3. **AWS Secrets Manager** — secret `langfuse/surf-ai/bot` (requires `aws` CLI)
 
-AWS Secrets Manager is tried automatically and silently skipped if the `aws` CLI is not installed or credentials are not configured.
+Config file takes priority over AWS because it represents explicit local intent, while the AWS secret may be stale (e.g. after the cloud → self-hosted migration).
+
+## Proxy Handling
+
+The script automatically handles proxy issues:
+- **SOCKS proxy** (`all_proxy`): Always removed — httpx crashes without the `socksio` package.
+- **HTTP proxy** (`http_proxy`/`https_proxy`): Removed for internal hosts (`*.ask.surf`, `*.svc.cluster.local`) — they are reachable directly and proxying causes timeouts.
 
 ## Configuration
 

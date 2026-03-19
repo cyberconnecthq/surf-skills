@@ -24,6 +24,10 @@ odin-skills/
 ├── odin-dev-push-code/           # Git workflow automation skill
 │   ├── SKILL.md
 │   └── references/
+├── odin-dev-datadog/             # Datadog log viewer for production debugging
+│   ├── SKILL.md
+│   └── scripts/
+│       └── ddlog.py              # CLI tool (uv run python scripts/ddlog.py)
 ├── odin-data-clickhouse/         # ClickHouse query skill
 │   ├── SKILL.md
 │   ├── references/

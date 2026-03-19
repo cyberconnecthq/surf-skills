@@ -12,19 +12,45 @@ All paths below are relative to this skill's base directory. Resolve to absolute
 
 Manage and debug Dagster pipelines running on EKS. The script talks to the Dagster GraphQL API by exec-ing into the webserver pod — no port-forward or public access needed.
 
+## Environment Selection
+
+Two EKS clusters are available as kubectl contexts:
+
+| Environment | Context Name | EKS Cluster |
+|-------------|-------------|-------------|
+| **Staging** | `stg` | `stg-app` |
+| **Production** | `prd` | `prd-app` |
+
+**Before running ANY command, determine the target environment:**
+1. If the user explicitly says "stg", "staging", "prd", "prod", or "production" → use that.
+2. If the context implies an environment → use that.
+3. **If ambiguous → ASK the user. Do NOT assume.**
+
+The `dagster-query` script supports a `--context` flag (must come before the subcommand):
+
+```bash
+# Example: list runs on staging
+scripts/dagster-query --context stg --runs
+
+# Example: list runs on production
+scripts/dagster-query --context prd --runs
+```
+
+**Always pass `--context stg` or `--context prd`** to every `dagster-query` invocation.
+
 ## First-Time Setup Check
 
 ```bash
-scripts/dagster-query --check-setup
+scripts/dagster-query --context prd --check-setup
 ```
 
 Requirements:
-- `kubectl` configured with access to the `prd-app` EKS cluster
-- Run `aws eks update-kubeconfig --region us-west-2 --name prd-app` if not configured
+- `kubectl` configured with access to both EKS clusters
+- Run `aws eks update-kubeconfig --region us-west-2 --name prd-app --alias prd` if not configured
+- Run `aws eks update-kubeconfig --region us-west-2 --name stg-app --alias stg` if not configured
 
 ## Cluster Info
 
-- **EKS cluster**: `prd-app` (us-west-2)
 - **Namespace**: `dagster`
 - **Webserver service**: `dagster-core-dagster-webserver` (ClusterIP, port 80)
 - **Access method**: `kubectl exec` into webserver pod → GraphQL at `localhost:80/graphql`
@@ -244,18 +270,18 @@ scripts/dagster-query --run-logs <run-id> --failures-only
 
 ### 5. Check pod-level issues (OOM, eviction)
 
-For pod-level issues not visible in Dagster logs, use kubectl directly:
+For pod-level issues not visible in Dagster logs, use kubectl directly (always pass `--context`):
 
 ```bash
 # Check for OOMKilled pods
-kubectl get pods -n dagster -o json | jq '.items[] | select(.status.containerStatuses[]?.lastState.terminated.reason == "OOMKilled") | .metadata.name'
+kubectl --context <ENV> get pods -n dagster -o json | jq '.items[] | select(.status.containerStatuses[]?.lastState.terminated.reason == "OOMKilled") | .metadata.name'
 
 # Check run pod logs
-kubectl logs -n dagster dagster-run-<uuid>-<suffix> --tail=200
+kubectl --context <ENV> logs -n dagster dagster-run-<uuid>-<suffix> --tail=200
 
 # User code server logs (asset-level errors)
-kubectl get pods -n dagster | grep user-deployments
-kubectl logs -n dagster <user-code-pod> --tail=200
+kubectl --context <ENV> get pods -n dagster | grep user-deployments
+kubectl --context <ENV> logs -n dagster <user-code-pod> --tail=200
 ```
 
 ## Common Failure Patterns

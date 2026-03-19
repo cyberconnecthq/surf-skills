@@ -1,11 +1,11 @@
 ---
 name: odin-dev-push-code
-description: Automate the Git workflow for pushing code changes. Creates feature branch, commits, pushes, creates PR, waits for CI, squash merges, and cleans up. Use when user says /odin-dev-push-code or asks to push/merge their changes.
+description: Automate the Git workflow for pushing code changes. Creates feature branch, commits, pushes, and creates PR. Use when user says /odin-dev-push-code or asks to push their changes.
 ---
 
 # Surf Push Code Workflow
 
-Automated Git workflow for pushing code changes to production.
+Automated Git workflow for pushing code changes up to PR creation. Merge is left to the user.
 
 ## Usage
 
@@ -77,31 +77,9 @@ EOF
 )"
 ```
 
-### 6. Wait for CI
+### 6. Done
 
-```bash
-# Poll CI status every 5-10 seconds
-gh pr checks <pr-number> --repo <owner>/<repo>
-```
-
-- Wait for `auto-approve` check to pass
-- If CI fails, inform user and stop
-
-### 7. Squash & Merge
-
-```bash
-gh pr merge <pr-number> --squash --delete-branch
-```
-
-### 8. Cleanup
-
-```bash
-# Switch to main and pull latest
-git checkout main
-git pull
-
-# Delete local feature branch
-git branch -d <branch-name>
-```
+- Print the PR URL for the user
+- Workflow stops here — merge is left to the user after reviewing CI results
 
 For error handling, examples, and tips, see [references/workflow.md](references/workflow.md).

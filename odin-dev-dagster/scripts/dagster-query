@@ -7,12 +7,25 @@ set -euo pipefail
 NAMESPACE="dagster"
 WEBSERVER_LABEL="component=dagster-webserver"
 GRAPHQL_URL="http://localhost:80/graphql"
+KUBE_CONTEXT=""  # set via --context flag
 
 # --- helpers ---
 
+# Wrapper: all kubectl calls go through this to respect --context
+kctl() {
+  if [[ -n "$KUBE_CONTEXT" ]]; then
+    kubectl --context "$KUBE_CONTEXT" "$@"
+  else
+    kubectl "$@"
+  fi
+}
+
 usage() {
   cat <<EOF
-Usage: dagster-query <command> [options]
+Usage: dagster-query [--context stg|prd] <command> [options]
+
+Global options:
+  --context <name>          kubectl context to use (e.g. stg, prd)
 
 Commands:
   --check-setup             Verify kubectl access and Dagster connectivity
@@ -57,10 +70,10 @@ EOF
 
 find_webserver_pod() {
   local pod
-  pod=$(kubectl get pods -n "$NAMESPACE" -l "$WEBSERVER_LABEL" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  pod=$(kctl get pods -n "$NAMESPACE" -l "$WEBSERVER_LABEL" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
   if [[ -z "$pod" ]]; then
     # Fallback: find by name pattern
-    pod=$(kubectl get pods -n "$NAMESPACE" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dagster-webserver | head -1)
+    pod=$(kctl get pods -n "$NAMESPACE" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep dagster-webserver | head -1)
   fi
   echo "$pod"
 }
@@ -68,7 +81,7 @@ find_webserver_pod() {
 run_gql() {
   local pod="$1"
   local query="$2"
-  kubectl exec -n "$NAMESPACE" "$pod" -c dagster -- python3 -c "
+  kctl exec -n "$NAMESPACE" "$pod" -c dagster -- python3 -c "
 import urllib.request, json, sys
 req = urllib.request.Request('$GRAPHQL_URL',
     data=json.dumps({'query': '''$query'''}).encode(),
@@ -87,7 +100,7 @@ except Exception as e:
 run_py() {
   local pod="$1"
   shift
-  kubectl exec -in "$NAMESPACE" "$pod" -c dagster -- python3 "$@"
+  kctl exec -in "$NAMESPACE" "$pod" -c dagster -- python3 "$@"
 }
 
 # --- commands ---
@@ -97,14 +110,16 @@ check_setup() {
 
   # kubectl
   if ! command -v kubectl &>/dev/null; then
-    echo "FAIL: kubectl not found"
+    echo "FAIL: kubectl not found (note: kctl wrapper requires kubectl)"
     exit 1
   fi
   echo "OK: kubectl found"
 
   # cluster access
-  if ! kubectl cluster-info &>/dev/null 2>&1; then
-    echo "FAIL: Cannot connect to k8s cluster. Run: aws eks update-kubeconfig --region us-west-2 --name prd-app"
+  if ! kctl cluster-info &>/dev/null 2>&1; then
+    local ctx_msg=""
+    [[ -n "$KUBE_CONTEXT" ]] && ctx_msg=" (context: $KUBE_CONTEXT)"
+    echo "FAIL: Cannot connect to k8s cluster${ctx_msg}. Run: aws eks update-kubeconfig --region us-west-2 --name <cluster>"
     exit 1
   fi
   echo "OK: k8s cluster accessible"
@@ -584,6 +599,14 @@ toggle_sensor() {
 }
 
 # --- main ---
+
+# Parse global --context flag before subcommand
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --context) KUBE_CONTEXT="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
 
 if [[ $# -eq 0 ]]; then
   usage
