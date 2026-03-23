@@ -10,10 +10,10 @@ Query Datadog logs for Surf platform production debugging. Supports filtering by
 ## Prerequisites
 
 - **Python package**: `datadog-api-client` (installed via uv in skill directory)
-- **Credentials** (pick one):
-  - Env vars: `DD_API_KEY` + `DD_APP_KEY`
-  - Config file: `~/.ddlog.json` → `{"api_key":"...","app_key":"...","site":"datadoghq.com"}`
-  - Source: K8s secret `urania-agent-sec` in `app` namespace (keys: `DATADOG_API_KEY`, `DATADOG_APP_KEY`)
+- **Credentials** (priority order):
+  1. AWS Secrets Manager: `datadog/prd-general` (auto-fetched with 5s timeout)
+  2. Env vars: `DD_API_KEY` + `DD_APP_KEY`
+  3. Config file: `~/.ddlog.json` → `{"api_key":"...","app_key":"...","site":"datadoghq.com"}`
 
 ## CLI Tool
 

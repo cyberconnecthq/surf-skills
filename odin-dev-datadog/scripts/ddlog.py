@@ -61,14 +61,47 @@ def colorize(text, color):
 # -- Config -------------------------------------------------------------------
 
 CONFIG_PATH = Path.home() / ".ddlog.json"
+AWS_SECRET_ID = "datadog/prd-general"
+
+
+def _load_from_aws():
+    """Load Datadog credentials from AWS Secrets Manager."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["aws", "secretsmanager", "get-secret-value",
+             "--region", "us-west-2",
+             "--secret-id", AWS_SECRET_ID,
+             "--query", "SecretString", "--output", "text"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except Exception:
+        pass
+    return None
 
 
 def load_config():
-    """Load DD keys from env vars or ~/.ddlog.json."""
-    api_key = os.environ.get("DD_API_KEY")
-    app_key = os.environ.get("DD_APP_KEY")
-    site = os.environ.get("DD_SITE", "datadoghq.com")
+    """Load DD keys from AWS Secrets Manager > env vars > ~/.ddlog.json."""
+    api_key = None
+    app_key = None
+    site = "datadoghq.com"
 
+    # 1. AWS Secrets Manager (primary)
+    secret = _load_from_aws()
+    if secret:
+        api_key = secret.get("api_key")
+        app_key = secret.get("app_key")
+        site = secret.get("site", site)
+
+    # 2. Environment variables
+    if not api_key or not app_key:
+        api_key = api_key or os.environ.get("DD_API_KEY")
+        app_key = app_key or os.environ.get("DD_APP_KEY")
+        site = os.environ.get("DD_SITE", site)
+
+    # 3. Config file
     if not api_key or not app_key:
         if CONFIG_PATH.exists():
             with open(CONFIG_PATH) as f:
@@ -79,6 +112,7 @@ def load_config():
 
     if not api_key or not app_key:
         print("ERROR: DD_API_KEY and DD_APP_KEY required.", file=sys.stderr)
+        print("Priority: AWS Secrets Manager > env vars > ~/.ddlog.json", file=sys.stderr)
         print(f"Set env vars or create {CONFIG_PATH} with:", file=sys.stderr)
         print('  {"api_key": "...", "app_key": "...", "site": "datadoghq.com"}', file=sys.stderr)
         sys.exit(1)
