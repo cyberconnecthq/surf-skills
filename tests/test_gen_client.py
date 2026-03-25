@@ -570,6 +570,93 @@ class TestGeneratePython:
             content = (tmp_path / f).read_text()
             compile(content, f, "exec")  # Raises SyntaxError if invalid.
 
+    def test_post_endpoint(self, tmp_path):
+        ep = parse_help("onchain-sql", ONCHAIN_SQL_HELP)
+        generate_python([ep], tmp_path)
+        content = (tmp_path / "client.py").read_text()
+        assert "fetch_onchain_sql" in content
+        assert "self._client.post" in content
+        assert "json=body" in content
+        # Required param should not have default.
+        assert "sql: str" in content
+        # Verify syntax.
+        compile(content, "client.py", "exec")
+
+    def test_cursor_endpoint(self, tmp_path):
+        ep = parse_help("social-user-posts", SOCIAL_USER_POSTS_HELP)
+        generate_python([ep], tmp_path)
+        types_content = (tmp_path / "types.py").read_text()
+        client_content = (tmp_path / "client.py").read_text()
+        # Types should have nested author dataclass.
+        assert "class SocialUserPostsItem" in types_content
+        assert "class SocialUserPostsItemAuthor" in types_content
+        # Client should have cursor param.
+        assert "fetch_social_user_posts" in client_content
+        assert "cursor" in client_content
+        # Verify syntax.
+        compile(types_content, "types.py", "exec")
+        compile(client_content, "client.py", "exec")
+
+    def test_object_response(self, tmp_path):
+        help_text = """Get wallet detail.
+## Option Schema:
+```schema
+{
+  --address: (string) Wallet address
+}
+```
+
+## Response 200 (application/json)
+
+OK
+
+```schema
+{
+  data*: {
+    total_usd*: (number format:double) Total
+    labels: {
+      entity_name: (string) Entity name
+    }
+  }
+  meta*: {
+    cached*: (boolean) Cached
+    credits_used*: (integer format:int64) Credits
+  }
+}
+```
+
+Usage:
+  surf surf wallet-detail [flags]
+"""
+        ep = parse_help("wallet-detail", help_text)
+        generate_python([ep], tmp_path)
+        types_content = (tmp_path / "types.py").read_text()
+        assert "class WalletDetailData" in types_content
+        assert "total_usd: float" in types_content
+        compile(types_content, "types.py", "exec")
+
+    def test_dynamic_keys(self, tmp_path):
+        """onchain-sql has <any>: <any> in response — should produce empty dataclass with pass."""
+        ep = parse_help("onchain-sql", ONCHAIN_SQL_HELP)
+        generate_python([ep], tmp_path)
+        types_content = (tmp_path / "types.py").read_text()
+        assert "class OnchainSqlItem" in types_content
+        assert "pass" in types_content  # Empty dataclass from dynamic keys.
+        compile(types_content, "types.py", "exec")
+
+    def test_multiple_endpoints(self, tmp_path):
+        ep1 = parse_help("market-price", MARKET_PRICE_HELP)
+        ep2 = parse_help("social-user-posts", SOCIAL_USER_POSTS_HELP)
+        generate_python([ep1, ep2], tmp_path)
+        types_content = (tmp_path / "types.py").read_text()
+        client_content = (tmp_path / "client.py").read_text()
+        assert "class MarketPriceItem" in types_content
+        assert "class SocialUserPostsItem" in types_content
+        assert "fetch_market_price" in client_content
+        assert "fetch_social_user_posts" in client_content
+        compile(types_content, "types.py", "exec")
+        compile(client_content, "client.py", "exec")
+
 
 # ---------------------------------------------------------------------------
 # Integration: real surf CLI (skip if not available)
