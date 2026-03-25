@@ -55,7 +55,7 @@ class Endpoint:
 # Constants
 # ---------------------------------------------------------------------------
 
-BASE_URL = "https://api.ask.surf/gateway/v1"
+DEFAULT_BASE_URL = "https://api.ask.surf/gateway/v1"
 
 # Longest-first for greedy matching.
 DOMAIN_PREFIXES = sorted(
@@ -484,7 +484,7 @@ def generate_typescript(endpoints: list[Endpoint], output_dir: Path, *,
     type_imports = sorted(set(type_imports))
     client_lines.append(f"import type {{ {', '.join(type_imports)} }} from './types';")
     client_lines.append("")
-    client_lines.append(f"const BASE_URL = '{BASE_URL}';")
+    client_lines.append(f"const BASE_URL = process.env.SURF_BASE_URL ?? '{DEFAULT_BASE_URL}';")
     client_lines.append("")
 
     for ep in endpoints:
@@ -742,7 +742,9 @@ def generate_python(endpoints: list[Endpoint], output_dir: Path):
     client_lines.append("")
     client_lines.append("import httpx")
     client_lines.append("")
-    client_lines.append(f"BASE_URL = '{BASE_URL}'")
+    client_lines.append("import os")
+    client_lines.append("")
+    client_lines.append(f"BASE_URL = os.environ.get('SURF_BASE_URL', '{DEFAULT_BASE_URL}')")
     client_lines.append("")
     client_lines.append("")
     client_lines.append("class SurfClient:")

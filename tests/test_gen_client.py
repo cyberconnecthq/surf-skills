@@ -451,6 +451,13 @@ class TestGenerateTypescript:
         assert "Bearer ${token}" in content
         assert "ApiResponse<MarketPriceItem>" in content
 
+    def test_gateway_url_env_var(self, tmp_path):
+        ep = parse_help("market-price", MARKET_PRICE_HELP)
+        generate_typescript([ep], tmp_path)
+        content = (tmp_path / "client.ts").read_text()
+        assert "process.env.SURF_BASE_URL" in content
+        assert "api.ask.surf/gateway/v1" in content
+
     def test_hooks_generated(self, tmp_path):
         ep = parse_help("market-price", MARKET_PRICE_HELP)
         files = generate_typescript([ep], tmp_path, hooks=True)
@@ -546,6 +553,13 @@ class TestGeneratePython:
         assert "class SurfClient" in content
         assert "fetch_market_price" in content
         assert "/market/price" in content
+
+    def test_gateway_url_env_var(self, tmp_path):
+        ep = parse_help("market-price", MARKET_PRICE_HELP)
+        generate_python([ep], tmp_path)
+        content = (tmp_path / "client.py").read_text()
+        assert "os.environ.get('SURF_BASE_URL'" in content
+        assert "api.ask.surf/gateway/v1" in content
 
     def test_reserved_words(self, tmp_path):
         ep = parse_help("market-price", MARKET_PRICE_HELP)
