@@ -19,6 +19,8 @@ fetching. Generate typed client code only when the user is building an app.
 
 ## Setup
 
+Install the Surf CLI:
+
 ```bash
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
 surf login
@@ -94,10 +96,10 @@ surf social-user --handle vitalikbuterin -o json -f body.data
 
 Things `--help` won't tell you:
 
-- **Never use `-q` for search.** `-q` is a global restish flag (`--rsh-query`), not the `--q` search parameter. Always use `--q` (double dash).
+- **Never use `-q` for search.** `-q` is a global flag (not the `--q` search parameter). Always use `--q` (double dash).
 - **Chains require canonical long-form names.** `eth` → `ethereum`, `sol` → `solana`, `matic` → `polygon`, `avax` → `avalanche`, `arb` → `arbitrum`, `op` → `optimism`, `ftm` → `fantom`, `bnb` → `bsc`.
 - **POST endpoints (`onchain-sql`, `onchain-structured-query`) take JSON on stdin.** Pipe JSON: `echo '{"sql":"SELECT ..."}' | surf onchain-sql`. Always filter on `block_date` — it's the partition key.
-- **Ignore `--rsh-*` global flags in `--help` output.** Only the command-specific flags matter.
+- **Ignore `--rsh-*` internal flags in `--help` output.** Only the command-specific flags matter.
 
 ### Troubleshooting
 

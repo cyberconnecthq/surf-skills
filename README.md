@@ -1,25 +1,23 @@
-# surf-core -- Surf Data CLI
+# surf-core — Agent Skill & Tools for Surf Data API
 
-CLI for querying crypto data — markets, projects, tokens, wallets, on-chain data, social, news, prediction markets, and funds. 66 commands across 11 domains, auto-generated from hermod's OpenAPI 3.1 spec.
+Agent skill and code generation tools for the Surf crypto data platform.
 
-## Quick Start
+## Prerequisites
+
+Install the Surf CLI:
 
 ```bash
-# Install
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
-
-# Login
 surf login
-
-# Go
-surf market-ranking --metric market_cap --limit 10
-surf search-project --q uniswap
-surf wallet-detail --address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 ```
 
 ## For Agents
 
 The agent skill is at `skills/surf/SKILL.md`. It teaches AI agents how to use `surf` for crypto research, wallet investigation, and building pages with live data. Includes recipes for common workflows and a full command index.
+
+## Code Generation
+
+`scripts/gen_client.py` generates typed TypeScript or Python API clients from the Surf CLI's schema output. See `skills/surf/SKILL.md` § Code Generation for details.
 
 ## Adding New Endpoints
 
