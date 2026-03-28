@@ -32,6 +32,11 @@ cd ../frontend && npm install && npm run dev
 
 Then **read the generated `CLAUDE.md`** at the project root — it has the full SDK reference, built-in endpoints, and rules for which files not to modify.
 
+After `npm install`, also read SDK and theme docs for detailed patterns:
+- `cat frontend/node_modules/@surf-ai/sdk/README.md` — database (Drizzle ORM), cron jobs, web search, data strategy (market vs exchange), backend composition patterns
+- `cat frontend/node_modules/@surf-ai/theme/CHARTS.md` — **MUST read before writing any ECharts code** — Surf flat style contract, tooltip formatter, chart colors, time series tabs
+- `cat frontend/node_modules/@surf-ai/theme/DESIGN-SYSTEM.md` — Surf semantic tokens (bg/fg/border), tag colors, visualizer palette
+
 ## Project Structure
 
 ```
