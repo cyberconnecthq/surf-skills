@@ -23,13 +23,14 @@ Run these commands exactly — do not modify or skip steps:
 # 1. Scaffold (ports auto-configured from environment)
 npx create-surf-app .
 
-# 2. Install dependencies (parallel)
-npm install --prefix backend & npm install --prefix frontend & wait
+# 2. Install dependencies
+npm install --prefix backend
+npm install --prefix frontend
 
 # 3. Read the project rules BEFORE writing any code
 cat CLAUDE.md
 
-# 4. Start backend (background) then frontend
+# 4. Start dev servers (backend first, then frontend)
 npm run dev --prefix backend &
 npm run dev --prefix frontend
 ```
