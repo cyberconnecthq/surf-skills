@@ -2,20 +2,20 @@
 name: onchain
 description: >
   Raw on-chain data: transaction decode (QuickNode JSON-RPC, multi-chain), structured query (no-SQL),
-  and SQL analytics on ClickHouse (DEX trades, transactions, traces, event logs, token transfers,
-  protocol fees/revenue, TVL on Ethereum/Base, lending (borrow/supply/flashloans),
-  ETH staking deposits/flows, bridge deposits/withdrawals/flows,
-  prediction markets on Polymarket/Kalshi, Hyperliquid perpetual futures, cross-platform aggregates).
+  and SQL analytics on ClickHouse. Covers Ethereum, Base, Arbitrum, BSC, Tron, HyperEVM, Bitcoin, Tempo.
+  Tables: DEX trades, transactions, traces, event logs, token transfers, blocks, prices,
+  protocol fees/revenue, TVL, DeFi yields, bridge volume,
+  prediction markets (Polymarket/Kalshi — trades, prices, leaderboards, user positions, categories),
+  Hyperliquid perpetual futures, x402 payments, Tempo network metrics.
   Use for: transaction analysis, DEX volume queries, gas analysis, whale trade detection,
   custom SQL aggregations on historical blockchain data, structured blockchain queries,
-  protocol fees and TVL comparison, lending protocol analysis, liquidation tracking,
-  ETH staking entity analysis, prediction market analytics, perp funding rates, open interest,
-  bridge flow analysis.
+  protocol fees and TVL comparison, yield farming analysis, prediction market analytics,
+  perp funding rates, open interest, bridge flow analysis, Bitcoin UTXO analysis.
   Keywords: transaction, tx, decode, onchain, sql, dex, trades, volume, analytics, clickhouse,
-  gas, whale, bridge, lending, staking, transfer, structured query, traces, event logs, fees, revenue, tvl,
+  gas, whale, bridge, transfer, structured query, traces, event logs, fees, revenue, tvl,
   polymarket, kalshi, prediction market, betting, odds, hyperliquid, perp, funding rate, open interest,
-  positions, bridge deposits, bridge withdrawals, bridge flows, borrow, supply, flashloan, liquidation,
-  aave, compound, lido, validator, beacon chain.
+  positions, leaderboard, category, yields, defi, bitcoin, utxo, arbitrum, bsc, tron, hyperevm, tempo,
+  x402, payments, bridge volume.
 ---
 
 <!-- @format -->
@@ -85,82 +85,160 @@ For the `query` endpoint, source format is `{chain}.{table}`:
 
 Use the schema endpoint to discover columns before writing SQL. The Table Index below lists every table with row counts and **mandatory filter columns** — always filter by these to avoid timeouts on billion-row tables.
 
-#### DEX Trades
+#### Ethereum
 
-| Table                       | Rows  | Time Range | MUST Filter By                                |
-| --------------------------- | ----- | ---------- | --------------------------------------------- |
-| `agent.ethereum_dex_trades` | ~478M | 2018-11+   | `block_time` (PK) or `block_date` (partition) |
-| `agent.base_dex_trades`     | ~1.3B | 2023-07+   | `block_time` (PK) or `block_date` (partition) |
+| Table                         | Rows    | Time Range | MUST Filter By                                        |
+| ----------------------------- | ------- | ---------- | ----------------------------------------------------- |
+| `agent.ethereum_dex_trades`   | ~484M   | 2018-11+   | `block_time` (PK) or `block_date` (partition)         |
+| `agent.ethereum_transactions` | ~3.4B   | genesis+   | `block_date` (partition) or `transaction_hash` (PK)   |
+| `agent.ethereum_traces`       | ~15.7B  | genesis+   | `block_date` (partition) + `transaction_hash` (bloom) |
+| `agent.ethereum_event_logs`   | ~6.5B   | genesis+   | `block_date` (partition) + `address` (PK)             |
+| `agent.ethereum_transfers`    | ~8.5B   | genesis+   | `contract_address` (PK) + `block_date` (partition)    |
+| `agent.ethereum_fees_daily`   | ~35K    | genesis+   | `block_date` + `project` (small, safe to scan)        |
+| `agent.ethereum_tvl_daily`    | ~78K    | 2019-08+   | `block_date` + `project` (small, safe to scan)        |
+| `agent.ethereum_yields_daily` | ~11.4M  | 2020+      | `block_date` + `project` (or `pool_address`)          |
 
-#### Transactions & Traces
+#### Base
 
-| Table                         | Rows   | Time Range | MUST Filter By                                        |
-| ----------------------------- | ------ | ---------- | ----------------------------------------------------- |
-| `agent.ethereum_transactions` | ~3.3B  | genesis+   | `block_date` (partition) or `transaction_hash` (PK)   |
-| `agent.base_transactions`     | ~5.9B  | 2023-06+   | `block_date` (partition)                              |
-| `agent.ethereum_traces`       | ~15.5B | genesis+   | `block_date` (partition) + `transaction_hash` (bloom) |
-| `agent.base_traces`           | ~134B  | 2023-06+   | `block_date` (partition) + `transaction_hash` (bloom) |
+| Table                     | Rows    | Time Range | MUST Filter By                                        |
+| ------------------------- | ------- | ---------- | ----------------------------------------------------- |
+| `agent.base_dex_trades`   | ~1.3B   | 2023-07+   | `block_time` (PK) or `block_date` (partition)         |
+| `agent.base_transactions` | ~6.0B   | 2023-06+   | `block_date` (partition)                              |
+| `agent.base_traces`       | ~139B   | 2023-06+   | `block_date` (partition) + `transaction_hash` (bloom) |
+| `agent.base_event_logs`   | ~23.3B  | 2023-06+   | `block_date` (partition) + `address` (PK)             |
+| `agent.base_transfers`    | ~7.5B   | 2023-06+   | `contract_address` (PK) + `block_date` (partition)    |
+| `agent.base_tvl_daily`    | ~9.4K   | 2023-08+   | `block_date` + `project` (small, safe to scan)        |
 
-#### Events & Transfers
+#### Arbitrum
 
-| Table                       | Rows   | Time Range | MUST Filter By                                     |
-| --------------------------- | ------ | ---------- | -------------------------------------------------- |
-| `agent.ethereum_event_logs` | ~6.4B  | genesis+   | `block_date` (partition) + `address` (PK)          |
-| `agent.base_event_logs`     | ~22.1B | 2023-06+   | `block_date` (partition) + `address` (PK)          |
-| `agent.ethereum_transfers`  | ~5.8B  | genesis+   | `contract_address` (PK) + `block_date` (partition) |
-| `agent.base_transfers`      | ~11.6B | 2023-06+   | `contract_address` (PK) + `block_date` (partition) |
+| Table                          | Rows    | Time Range | MUST Filter By                                        |
+| ------------------------------ | ------- | ---------- | ----------------------------------------------------- |
+| `agent.arbitrum_dex_trades`    | ~301M   | 2021-08+   | `block_time` (PK) or `block_date` (partition)         |
+| `agent.arbitrum_transactions`  | ~2.5B   | 2021-08+   | `block_date` (partition)                              |
+| `agent.arbitrum_traces`        | ~38.3B  | 2021-08+   | `block_date` (partition) + `transaction_hash` (bloom) |
+| `agent.arbitrum_blocks`        | ~447M   | 2021-08+   | `date` or `number`                                    |
+| `agent.arbitrum_event_logs`    | large   | 2021-08+   | `block_date` (partition) + `address` (PK)             |
+| `agent.arbitrum_transfers`     | ~312M   | 2021-08+   | `contract_address` (PK) + `block_date` (partition)    |
+| `agent.arbitrum_prices_day`    | ~274K   | 2021-08+   | `block_date` + `contract_address` (small)             |
+| `agent.arbitrum_prices_hour`   | ~5.5M   | 2021-08+   | `hour` + `contract_address`                           |
+| `agent.arbitrum_tvl_daily`     | ~42     | recent     | scan (tiny)                                           |
 
-#### Protocol Metrics 
-| Table                       | Rows  | Time Range | MUST Filter By                                 |
-| --------------------------- | ----- | ---------- | ---------------------------------------------- |
-| `agent.ethereum_fees_daily` | ~35K  | genesis+   | `block_date` + `project` (small, safe to scan) |
-| `agent.ethereum_tvl_daily`  | ~76K  | 2019-08+   | `block_date` + `project` (small, safe to scan) |
-| `agent.base_tvl_daily`      | ~9.2K | 2023-08+   | `block_date` + `project` (small, safe to scan) |
+#### BSC (BNB Smart Chain)
 
-#### Lending
-| Table                               | Rows  | Time Range | MUST Filter By           |
-| ----------------------------------- | ----- | ---------- | ------------------------ |
-| `agent.ethereum_lending_borrow`     | ~3.0M | 2018-09+   | `block_date` + `project` |
-| `agent.ethereum_lending_flashloans` | ~1.7M | 2020-01+   | `block_date` + `project` |
-| `agent.ethereum_lending_supply`     | ~6.8M | 2019-05+   | `block_date` + `project` |
+| Table                    | Rows    | Time Range | MUST Filter By                                        |
+| ------------------------ | ------- | ---------- | ----------------------------------------------------- |
+| `agent.bsc_dex_trades`   | ~4.0B   | 2020-09+   | `block_time` (PK) or `block_date` (partition)         |
+| `agent.bsc_transactions` | ~12.1B  | 2020-09+   | `block_date` (partition)                              |
+| `agent.bsc_traces`       | ~117.8B | 2020-09+   | `block_date` (partition) + `transaction_hash` (bloom) |
+| `agent.bsc_event_logs`   | ~46.2B  | 2020-09+   | `block_date` (partition) + `address` (PK)             |
+| `agent.bsc_transfers`    | large   | 2020-09+   | `contract_address` (PK) + `block_date` (partition)    |
 
-#### Staking
-| Table                             | Rows    | Time Range | MUST Filter By                                 |
-| --------------------------------- | ------- | ---------- | ---------------------------------------------- |
-| `agent.ethereum_staking_deposits` | ~2.5M   | 2020-11+   | `block_date` + `entity`                        |
-| `agent.ethereum_staking_flows`    | ~124.7M | 2020-11+   | `toDate(block_time)` (no `block_date` column!) |
+#### Tron
 
-#### Bridges
-| Table                               | Rows   | Time Range | MUST Filter By               |
-| ----------------------------------- | ------ | ---------- | ---------------------------- |
-| `agent.ethereum_bridge_deposits`    | ~13.2M | 2020-08+   | `block_date` + `bridge_name` |
-| `agent.ethereum_bridge_withdrawals` | ~8.0M  | 2020-08+   | `block_date` + `bridge_name` |
-| `agent.ethereum_bridge_flows`       | ~21.2M | 2020-08+   | `block_date` + `bridge_name` |
+| Table                     | Rows  | Time Range | MUST Filter By                                        |
+| ------------------------- | ----- | ---------- | ----------------------------------------------------- |
+| `agent.tron_dex_trades`   | large | 2019+      | `block_time` (PK) or `block_date` (partition)         |
+| `agent.tron_transactions` | large | 2018+      | `block_date` (partition)                              |
+| `agent.tron_blocks`       | large | 2018+      | `date` or `number`                                    |
+| `agent.tron_event_logs`   | large | 2018+      | `block_date` (partition) + `address` (PK)             |
+| `agent.tron_transfers`    | large | 2018+      | `contract_address` (PK) + `block_date` (partition)    |
+| `agent.tron_tvl_daily`    | small | 2020+      | `block_date` + `project` (small, safe to scan)        |
+
+#### Bitcoin
+
+| Table                        | Rows   | Time Range | MUST Filter By                        |
+| ---------------------------- | ------ | ---------- | ------------------------------------- |
+| `agent.bitcoin_blocks`       | ~943K  | genesis+   | `date` or `height`                    |
+| `agent.bitcoin_transactions` | ~1.3B  | genesis+   | `block_date` + `block_height`         |
+| `agent.bitcoin_inputs`       | large  | genesis+   | `block_date` + `tx_id`               |
+| `agent.bitcoin_outputs`      | large  | genesis+   | `block_date` + `tx_id`               |
+
+#### HyperEVM
+
+| Table                            | Rows   | Time Range | MUST Filter By                                    |
+| -------------------------------- | ------ | ---------- | ------------------------------------------------- |
+| `agent.hyperevm_blocks`          | ~30.7M | 2024+      | `date` or `number`                                |
+| `agent.hyperevm_dex_base_trades` | ~71.1M | 2024+      | `block_time` (PK) or `block_date` (partition)     |
+| `agent.hyperevm_event_logs`      | ~483M  | 2024+      | `block_date` + `contract_address`                 |
+| `agent.hyperevm_transactions`    | ~127M  | 2024+      | `block_date` (partition)                           |
+
+#### Bridge Volume
+
+| Table                       | Rows  | Time Range | MUST Filter By                                          |
+| --------------------------- | ----- | ---------- | ------------------------------------------------------- |
+| `agent.bridge_volume_daily` | ~16K  | 2020+      | `block_date` + `project` (small, safe to scan)          |
+
+#### DeFi Yields (Ethereum)
+
+`agent.ethereum_yields_daily` (~11.4M rows) — daily yield/APY data per pool.
+
+Key columns: `project`, `pool_address`, `symbol`, `apy`, `apy_base`, `apy_reward`, `tvl_usd`, `total_supply_usd`, `total_borrow_usd`, `stablecoin`, `exposure`, `il_risk`.
+
+Filter by: `block_date` + `project` (or `pool_address`).
 
 #### Hyperliquid Perpetuals
-| Table                             | Rows  | Time Range | MUST Filter By                                 |
-| --------------------------------- | ----- | ---------- | ---------------------------------------------- |
-| `agent.hyperliquid_funding_rates` | ~3.6M | 2023-05+   | `funding_date` + `coin`                        |
-| `agent.hyperliquid_market_data`   | ~38K  | recent     | `snapshot_date` + `coin` (small, safe to scan) |
-| `agent.hyperliquid_perp_meta`     | ~229  | snapshot   | None (tiny reference table)                    |
 
-#### Prediction Markets
-| Table                                         | Rows    | Time Range | MUST Filter By                                 |
-| --------------------------------------------- | ------- | ---------- | ---------------------------------------------- |
-| `agent.polymarket_market_details`             | ~1.2M   | 2020-10+   | `condition_id` (PK) or scan (small)            |
-| `agent.polymarket_market_prices_hourly`       | ~31.3M  | 2022-11+   | `block_hour` + `condition_id`                  |
-| `agent.polymarket_market_prices_latest`       | ~1.1M   | 2022-12+   | scan (small)                                   |
-| `agent.polymarket_market_prices_daily`        | ~5.1M   | 2022-11+   | `block_date` (partition) + `condition_id` (PK) |
-| `agent.polymarket_market_trades`              | ~778M   | 2022-11+   | `block_date` (partition) or `block_time` (PK)  |
-| `agent.polymarket_market_open_interest_daily` | ~7.0M   | 2020-09+   | `block_date` + `condition_id`                  |
-| `agent.polymarket_market_volume_daily`        | ~2.8M   | 2022-11+   | `block_date` + `condition_id`                  |
-| `agent.polymarket_market_volume_hourly`       | ~17.1M  | 2022-11+   | `block_hour` + `condition_id`                  |
-| `agent.polymarket_positions`                  | ~99.9M  | 2020-10+   | `day` (MUST!) + `condition_id`                 |
-| `agent.kalshi_market_details`                 | ~39M    | 2021-06+   | `market_ticker` (PK) or scan                   |
-| `agent.kalshi_trade_report`                   | ~30M    | 2021-06+   | `date` (partition+PK) + `report_ticker` (PK)   |
-| `agent.kalshi_market_report`                  | ~469.6M | 2021-06+   | `date` (MUST!)                                 |
-| `agent.kalshi_trades`                         | ~283.4M | 2021-06+   | `trade_date` (MUST!)                           |
-| `agent.prediction_markets_daily`              | ~273K   | 2020-09+   | `date` + `source` (small, safe to scan)        |
+| Table                             | Rows   | Time Range | MUST Filter By                                 |
+| --------------------------------- | ------ | ---------- | ---------------------------------------------- |
+| `agent.hyperliquid_funding_rates` | ~3.7M  | 2023-05+   | `funding_date` + `coin`                        |
+| `agent.hyperliquid_market_data`   | ~101K  | recent     | `snapshot_date` + `coin` (small, safe to scan) |
+| `agent.hyperliquid_perp_meta`     | ~229   | snapshot   | None (tiny reference table)                    |
+
+#### Prediction Markets — Polymarket
+
+| Table                                       | Rows    | Time Range | MUST Filter By                                 |
+| ------------------------------------------- | ------- | ---------- | ---------------------------------------------- |
+| `agent.polymarket_market_details`           | ~1.5M   | 2020-10+   | `condition_id` (PK) or scan (small)            |
+| `agent.polymarket_market_prices_hourly`     | ~33.5M  | 2022-11+   | `block_hour` + `condition_id`                  |
+| `agent.polymarket_market_prices_latest`     | ~1.2M   | 2022-12+   | scan (small)                                   |
+| `agent.polymarket_market_prices_daily`      | ~5.8M   | 2022-11+   | `block_date` (partition) + `condition_id` (PK) |
+| `agent.polymarket_market_trades`            | ~963M   | 2022-11+   | `block_date` (partition) or `block_time` (PK)  |
+| `agent.polymarket_market_volume_daily`      | ~3.1M   | 2022-11+   | `block_date` + `condition_id`                  |
+| `agent.polymarket_market_volume_hourly`     | ~18.5M  | 2022-11+   | `block_hour` + `condition_id`                  |
+| `agent.polymarket_positions`                | large   | 2020-10+   | `day` (MUST!) + `condition_id`                 |
+| `agent.polymarket_market_category`          | ~725K   | —          | `condition_id` or scan (small)                 |
+| `agent.polymarket_market_ranking`           | ~725K   | —          | `condition_id` or scan (small)                 |
+| `agent.polymarket_market_report`            | ~71.6M  | 2020+      | `date` (MUST!) + `condition_id`                |
+| `agent.polymarket_leaderboard`              | small   | snapshot   | scan (small)                                   |
+| `agent.polymarket_leaderboard_daily`        | ~2.4M   | 2020+      | `address` or scan                              |
+| `agent.polymarket_leaderboard_monthly`      | ~2.4M   | 2020+      | `address` or scan                              |
+| `agent.polymarket_leaderboard_weekly`       | ~2.4M   | 2020+      | `address` or scan                              |
+| `agent.polymarket_user_activity_api`        | ~1.1B   | 2020+      | `block_time` + `proxy_wallet` (MUST!)          |
+| `agent.polymarket_user_positions`           | large   | 2020+      | `address` + `condition_id`                     |
+| `agent.polymarket_user_positions_api`       | large   | 2020+      | `address` + `condition_id`                     |
+
+#### Prediction Markets — Kalshi
+
+| Table                                | Rows   | Time Range | MUST Filter By                           |
+| ------------------------------------ | ------ | ---------- | ---------------------------------------- |
+| `agent.kalshi_market_details`        | ~58.7M | 2021-06+   | `market_ticker` (PK) or scan             |
+| `agent.kalshi_market_report`         | ~17.3M | 2021-06+   | `date` (MUST!)                           |
+| `agent.kalshi_trades`                | ~317M  | 2021-06+   | `trade_date` (MUST!)                     |
+| `agent.kalshi_market_prices_daily`   | small  | 2021-06+   | `block_date` + `ticker`                  |
+| `agent.kalshi_market_prices_hourly`  | small  | 2021-06+   | `block_hour` + `ticker`                  |
+| `agent.prediction_markets_daily`     | ~189K  | 2020-09+   | `date` + `source` (small, safe to scan)  |
+
+#### Tempo Network
+
+| Table                                | Rows  | Time Range | MUST Filter By                              |
+| ------------------------------------ | ----- | ---------- | ------------------------------------------- |
+| `agent.tempo_transfers`              | ~2.8M | recent     | `block_date` + `token_address`              |
+| `agent.tempo_transfer_with_memo`     | ~66K  | recent     | `block_date`                                |
+| `agent.tempo_bridge_flows`           | ~94   | recent     | scan (tiny)                                 |
+| `agent.tempo_contract_calls_daily`   | ~8.7K | recent     | `block_date` + `contract_address` (small)   |
+| `agent.tempo_contract_deployments`   | ~11K  | recent     | `block_date` (small)                        |
+| `agent.tempo_dex_swaps`             | ~13K  | recent     | `block_date` (small)                        |
+| `agent.tempo_dex_trades_daily`       | ~24   | recent     | scan (tiny)                                 |
+| `agent.tempo_metrics`                | ~3    | recent     | scan (tiny, daily chain-level stats)        |
+| `agent.tempo_token_metrics`          | ~47   | recent     | scan (tiny)                                 |
+| `agent.tempo_internal_transfers`     | 0     | —          | empty                                       |
+
+#### x402 Payments (Base)
+
+| Table                           | Rows  | Time Range | MUST Filter By                          |
+| ------------------------------- | ----- | ---------- | --------------------------------------- |
+| `agent.x402_base_payments`      | ~684K | 2024+      | `block_date` + `facilitator`            |
+| `agent.x402_base_payments_daily`| ~275  | 2024+      | `block_date` (small, safe to scan)      |
 
 ### SQL Validation Rules
 
@@ -351,13 +429,16 @@ curl -s "$DATA_PROXY_BASE/onchain/schema" | jq '.data[] | select(.table=="ethere
 - **Avoid cross-table JOINs** — ClickHouse JOIN performance is poor on large tables. Query separately and combine in code
 - **Transfers: use `block_date` NOT `block_time`** for time filtering — `block_time` won't hit partition key
 - **Data has ~1-2 day lag** — use `today() - 3` instead of `today() - 1` to avoid empty results
-- **Polymarket/Kalshi details tables** are small enough to scan without time filters
-- **polymarket_market_trades (778M rows)** — always filter by `block_date` or `block_time`
-- **polymarket_positions (100M rows)** — always filter by `day`
-- **kalshi_market_report (470M rows)** — always filter by `date`
-- **kalshi_trades (283M rows)** — always filter by `trade_date`
+- **BSC tables are massive** — bsc_traces (~118B), bsc_event_logs (~46B), bsc_transactions (~12B). Always use tight date ranges
+- **Polymarket/Kalshi details and category tables** are small enough to scan without time filters
+- **polymarket_market_trades (~963M rows)** — always filter by `block_date` or `block_time`
+- **polymarket_user_activity_api (~1.1B rows)** — always filter by `block_time` + `proxy_wallet`
+- **polymarket_positions** — always filter by `day`
+- **kalshi_trades (~317M rows)** — always filter by `trade_date`
+- **kalshi_market_report** — always filter by `date`
 - **prediction_markets_daily** — small cross-platform summary, great for platform-level comparisons
-- **ethereum_staking_flows (125M rows)** — has NO `block_date` column, use `toDate(block_time)` for date filtering
+- **Bitcoin tables** — use UTXO model: `bitcoin_inputs` + `bitcoin_outputs` for value flow; filter by `block_date` + `tx_id`
+- **Tempo tables** — mostly small (new chain), safe to scan; `tempo_transfers` (~2.8M) filter by `block_date`
 
 ## SQL Pre-Validation (Mandatory)
 
