@@ -17,6 +17,20 @@ Build full-stack crypto data apps with `create-surf-app` and `@surf-ai/sdk`.
 
 ## Scaffold and Start
 
+## Runtime Status
+
+- Frontend project present: !`test -f frontend/package.json && echo YES || echo NO`
+- Backend project present: !`test -f backend/package.json && echo YES || echo NO`
+- Frontend dev server: !`curl -fsSI "http://127.0.0.1:${VITE_PORT:-0}/" >/dev/null && echo UP || echo DOWN`
+- Backend dev server: !`curl -fsS "http://127.0.0.1:${VITE_BACKEND_PORT:-0}/api/health" >/dev/null && echo UP || echo DOWN`
+- SDK installed in frontend: !`test -d frontend/node_modules/@surf-ai/sdk && echo YES || echo NO`
+
+Use this status block before acting:
+- If the project is not scaffolded yet, scaffold it first.
+- If backend is DOWN, start backend.
+- If frontend is DOWN, start frontend.
+- Do not assume the system already started either server unless the status above says `UP`.
+
 Run these commands exactly — do not modify or skip steps:
 
 ```bash
@@ -30,13 +44,17 @@ npm install --prefix frontend
 # 3. Read the project rules BEFORE writing any code
 cat CLAUDE.md
 
-# 4. Start dev servers (backend first, then frontend)
+# 4. Start dev servers if needed (backend first, then frontend)
 npm run dev --prefix backend &
 npm run dev --prefix frontend
 
 # 5. Verify backend is running (wait a few seconds for startup)
 curl -s http://localhost:$VITE_BACKEND_PORT/api/health
 # Expected: {"status":"ok"} — if you see this, backend is ready. Do NOT restart it.
+
+# 6. Verify frontend is running
+curl -fsSI http://localhost:$VITE_PORT/ >/dev/null
+# Expected: success (200/302) — if this fails, frontend is not ready yet.
 ```
 
 **IMPORTANT — do NOT:**
