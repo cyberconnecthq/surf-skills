@@ -18,10 +18,6 @@ curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
 surf login
 ```
 
-## Code Generation
-
-`skills/surf/scripts/gen_client.py` generates typed TypeScript or Python API clients from the Surf CLI's schema output. See `skills/surf/SKILL.md` § Code Generation for details.
-
 ## Adding New Endpoints
 
 No changes needed in surf-skills. When hermod adds a new API endpoint:
