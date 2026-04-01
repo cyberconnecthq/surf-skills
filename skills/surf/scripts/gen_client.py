@@ -55,7 +55,7 @@ class Endpoint:
 # Constants
 # ---------------------------------------------------------------------------
 
-BASE_URL = "https://api.ask.surf/gateway/v1"
+BASE_URL = "https://api.asksurf.ai/gateway/v1"
 
 # Longest-first for greedy matching.
 DOMAIN_PREFIXES = sorted(

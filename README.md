@@ -1,4 +1,4 @@
-# surf-core — Agent Skill & Tools for Surf Data API
+# surf-skills — Agent Skill & Tools for Surf Data API
 
 Agent skill and code generation tools for the Surf crypto data platform.
 
@@ -21,7 +21,7 @@ The agent skill is at `skills/surf/SKILL.md`. It teaches AI agents how to use `s
 
 ## Adding New Endpoints
 
-No changes needed in surf-core. When hermod adds a new API endpoint:
+No changes needed in surf-skills. When hermod adds a new API endpoint:
 
 1. The OpenAPI spec updates automatically
 2. `surf list-operations` shows the new command

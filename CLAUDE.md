@@ -1,11 +1,11 @@
-# CLAUDE.md -- surf-core
+# CLAUDE.md -- surf-skills
 
 Agent skill and code generation tools for the Surf data API.
 
 ## Directory Structure
 
 ```
-surf-core/
+surf-skills/
 ├── skills/
 │   ├── surf/
 │   │   ├── SKILL.md           # Agent skill: research, investigate, fetch crypto data via CLI
@@ -35,4 +35,4 @@ surf list-operations           # verify: lists all available commands
 
 ## Adding New Endpoints
 
-No surf-core changes needed. Add the endpoint in hermod — the surf CLI discovers it automatically from the updated OpenAPI spec. `surf list-operations` will show the new command. Update `skills/surf/SKILL.md` if the new endpoint belongs to a new domain or changes existing recipes.
+No surf-skills changes needed. Add the endpoint in hermod — the surf CLI discovers it automatically from the updated OpenAPI spec. `surf list-operations` will show the new command. Update `skills/surf/SKILL.md` if the new endpoint belongs to a new domain or changes existing recipes.
