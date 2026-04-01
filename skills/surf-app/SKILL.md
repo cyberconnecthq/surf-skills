@@ -35,15 +35,13 @@ npm run dev --prefix backend &
 npm run dev --prefix frontend
 
 # 5. Verify backend is running (wait a few seconds for startup)
-curl -s http://localhost:$VITE_BACKEND_PORT/api/health
-# Expected: {"status":"ok"} — if you see this, backend is ready. Do NOT restart it.
+# Check the health endpoint using the port from frontend/.env
 ```
 
 **IMPORTANT — do NOT:**
 - Use `npx vite` or `npx vite --port ...` — always use `npm run dev`
 - Pass `--port` flag to dev commands — port is pre-configured in `frontend/.env`
 - Restart dev servers after `npm install` — Vite auto-discovers new deps, backend uses `node --watch`
-- Try to kill processes or free ports — if `curl localhost:$VITE_BACKEND_PORT/api/health` returns `{"status":"ok"}`, the server is already running
 
 Then **read the generated `CLAUDE.md`** at the project root — it has the full SDK reference, built-in endpoints, and rules for which files not to modify.
 

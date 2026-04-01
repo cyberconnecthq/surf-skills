@@ -141,7 +141,7 @@ code using the conventions below.
 ### API Conventions
 
 ```
-Base URL:  https://api.ask.surf/gateway/v1
+Base URL:  https://api.asksurf.ai/gateway/v1
 Auth:      Authorization: Bearer <token>
 ```
 
