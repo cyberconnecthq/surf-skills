@@ -34,8 +34,8 @@ cat CLAUDE.md
 npm run dev --prefix backend &
 npm run dev --prefix frontend
 
-# 5. Verify backend is running (wait a few seconds for startup)
-# Check the health endpoint using the port from frontend/.env
+# 5. Verify backend is running (port is in frontend/.env)
+curl -s http://localhost:$(<frontend/.env grep VITE_BACKEND_PORT | cut -d= -f2)/api/health
 ```
 
 **IMPORTANT — do NOT:**

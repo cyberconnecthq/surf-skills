@@ -1,10 +1,9 @@
 ---
 name: surf
 description: >-
-  Access the Surf crypto data API — for research, investigation, or building apps.
-  Uses the surf CLI directly for fetching data (market prices, wallets, social, DeFi,
-  tokens, prediction markets, on-chain, exchange, news). When the user is building an
-  app and needs typed client code, generates TypeScript or Python clients on demand.
+  Access the Surf crypto data API — for research, investigation, or fetching live data.
+  Uses the surf CLI directly for querying crypto data (market prices, wallets, social, DeFi,
+  tokens, prediction markets, on-chain, exchange, news).
   Use whenever the user needs crypto data, asks about prices/wallets/tokens/DeFi, wants
   to investigate on-chain activity, or is building something that consumes crypto data —
   even if they don't say "surf" explicitly.
@@ -14,7 +13,7 @@ tools:
 
 # Surf Data API
 
-`surf` is a global CLI for querying crypto data. Run it directly (NOT via `npx surf`). Use it for research and data fetching. Generate typed client code only when the user is building an app.
+`surf` is a global CLI for querying crypto data. Run it directly (NOT via `npx surf`).
 
 **CLI flags use kebab-case** (e.g. `--time-range`, `--token-address`), NOT snake_case.
 
@@ -26,20 +25,6 @@ Install the Surf CLI:
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
 surf login
 ```
-
-## When to Use CLI vs Code Generation
-
-**Use CLI directly** (default) when:
-- Researching a topic, answering questions, investigating
-- Fetching data to display, analyze, or summarize
-- One-off queries or exploration
-
-**Generate client code** when the user is:
-- Building a web app, backend, or script that needs to call the API
-- Asking for typed functions, API clients, or fetch helpers
-- Working in a codebase that will make repeated API calls
-
----
 
 ## CLI Usage
 
@@ -110,33 +95,9 @@ Things `--help` won't tell you:
 
 ---
 
-## Code Generation
+## API Reference
 
-Only use this section when the user is building an app and needs typed client code.
-
-### For TypeScript or Python: use the gen script
-
-```bash
-# TypeScript (with optional React Query hooks)
-python scripts/gen_client.py --ops market-price wallet-detail --lang typescript --hooks --out ./api/
-
-# Python (httpx client class)
-python scripts/gen_client.py --ops market-price wallet-detail --lang python --out ./api/
-```
-
-The script is at `scripts/gen_client.py` relative to this skill. It:
-1. Runs `surf sync` automatically
-2. Reads `surf <op> --help` for each operation you specify
-3. Generates typed client code — only for the endpoints you ask for
-4. Detects pagination type (offset vs cursor) and generates the right hooks/helpers
-
-**TypeScript output:** `types.ts`, `client.ts`, `hooks.ts` (with `--hooks`)
-**Python output:** `types.py`, `client.py`, `__init__.py`
-
-### For other languages: discover and write
-
-For Go, vanilla HTML/JS, or anything else, discover endpoints via CLI and write
-code using the conventions below.
+For building apps that call the Surf API directly (without the SDK).
 
 ### API Conventions
 

@@ -1,6 +1,13 @@
-# surf-skills — Agent Skill & Tools for Surf Data API
+# surf-skills — Agent Skills for the Surf Data API
 
-Agent skill and code generation tools for the Surf crypto data platform.
+Agent-discoverable skills and code generation tools for the Surf crypto data platform.
+
+## Skills
+
+| Skill | Path | Purpose |
+|-------|------|---------|
+| **surf** | `skills/surf/SKILL.md` | Research, investigate, and fetch crypto data via the `surf` CLI |
+| **surf-app** | `skills/surf-app/SKILL.md` | Scaffold and build full-stack crypto data web apps |
 
 ## Prerequisites
 
@@ -10,14 +17,6 @@ Install the Surf CLI:
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
 surf login
 ```
-
-## For Agents
-
-The agent skill is at `skills/surf/SKILL.md`. It teaches AI agents how to use `surf` for crypto research, wallet investigation, and building pages with live data. Includes recipes for common workflows and a full command index.
-
-## Code Generation
-
-`scripts/gen_client.py` generates typed TypeScript or Python API clients from the Surf CLI's schema output. See `skills/surf/SKILL.md` § Code Generation for details.
 
 ## Adding New Endpoints
 
