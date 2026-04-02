@@ -7,7 +7,6 @@ Agent-discoverable skills and code generation tools for the Surf crypto data pla
 | Skill | Path | Purpose |
 |-------|------|---------|
 | **surf** | `skills/surf/SKILL.md` | Research, investigate, and fetch crypto data via the `surf` CLI |
-| **surf-app** | `skills/surf-app/SKILL.md` | Scaffold and build full-stack crypto data web apps |
 
 ## Prerequisites
 
