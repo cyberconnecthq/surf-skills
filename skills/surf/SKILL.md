@@ -23,7 +23,7 @@ Install the Surf CLI:
 
 ```bash
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
-surf login
+export SURF_API_KEY=<your-api-key>
 ```
 
 ## CLI Usage
@@ -89,7 +89,7 @@ Things `--help` won't tell you:
 
 ### Troubleshooting
 
-- **Auth errors**: Run `surf refresh` to renew an expired token, or `surf login` to re-authenticate
+- **Auth errors**: Ensure `SURF_API_KEY` is set in your environment
 - **Unknown command**: Run `surf sync` to update schema, then `surf list-operations` to verify
 - **Empty results**: Check `--help` for required params and valid enum values
 
@@ -103,7 +103,7 @@ For building apps that call the Surf API directly (without the SDK).
 
 ```
 Base URL:  https://api.asksurf.ai/gateway/v1
-Auth:      Authorization: Bearer <token>
+Auth:      Authorization: Bearer $SURF_API_KEY
 ```
 
 **URL Mapping** — command name → API path:
