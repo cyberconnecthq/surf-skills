@@ -19,7 +19,7 @@ Install the Surf CLI:
 
 ```bash
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
-surf login
+export SURF_API_KEY=<your-api-key>
 surf list-operations           # verify: lists all available commands
 ```
 

@@ -14,16 +14,16 @@ Works with any agent that supports the [skills protocol](https://skills.sh) — 
 
 ### Prerequisites
 
-The Surf CLI must be installed and authenticated:
+The Surf CLI must be installed with an API key:
 
 ```bash
 curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
-surf login
+export SURF_API_KEY=<your-api-key>
 ```
 
 ## What It Does
 
-Once installed, your agent can fetch live crypto data just by you asking for it — no API keys to pass, no endpoints to memorize.
+Once installed, your agent can fetch live crypto data just by you asking for it — no endpoints to memorize.
 
 **Example prompts your agent will handle:**
 
