@@ -82,15 +82,35 @@ surf social-user --handle vitalikbuterin -o json -f body.data
 
 Things `--help` won't tell you:
 
+- **Flags are kebab-case, not snake_case.** `--sort-by`, `--time-range`, `--token-address` — NOT `--sort_by`. The CLI will reject snake_case flags with "unknown flag".
+- **Enum values are always lowercase.** `--indicator rsi`, NOT `RSI`. Check `--help` for exact enum values — the CLI validates strictly.
 - **Never use `-q` for search.** `-q` is a global flag (not the `--q` search parameter). Always use `--q` (double dash).
 - **Chains require canonical long-form names.** `eth` → `ethereum`, `sol` → `solana`, `matic` → `polygon`, `avax` → `avalanche`, `arb` → `arbitrum`, `op` → `optimism`, `ftm` → `fantom`, `bnb` → `bsc`.
-- **POST endpoints (`onchain-sql`, `onchain-structured-query`) take JSON on stdin.** Pipe JSON: `echo '{"sql":"SELECT ..."}' | surf onchain-sql`. Always filter on `block_date` — it's the partition key.
+- **POST endpoints (`onchain-sql`, `onchain-structured-query`) take JSON on stdin.** Pipe JSON: `echo '{"sql":"SELECT ..."}' | surf onchain-sql`. See "On-Chain SQL" section below for required steps before writing queries.
 - **Ignore `--rsh-*` internal flags in `--help` output.** Only the command-specific flags matter.
+
+### On-Chain SQL
+
+Before writing any `onchain-sql` query, **always consult the data catalog first**:
+
+```bash
+surf catalog search "dex trades"       # Find relevant tables
+surf catalog show ethereum_dex_trades  # Full schema, partition key, tips, sample SQL
+surf catalog practices                 # ClickHouse query rules + entity linking
+```
+
+Essential rules (even if you skip the catalog):
+- **Always `agent.` prefix** — `agent.ethereum_dex_trades`, NOT `ethereum_dex_trades`
+- **Read-only** — only `SELECT` / `WITH`; 30s timeout; 10K row limit; 5B row scan limit
+- **Always filter on `block_date`** — it's the partition key; queries without it will timeout on large tables
 
 ### Troubleshooting
 
 - **Unknown command**: Run `surf sync` to update schema, then `surf list-operations` to verify
+- **"unknown flag"**: You used snake_case (`--sort_by`). Use kebab-case (`--sort-by`)
+- **Enum validation error** (e.g. `expected value to be one of "rsi, macd, ..."`): Check `--help` for exact allowed values — always lowercase
 - **Empty results**: Check `--help` for required params and valid enum values
+- **Exit code 4 with error JSON**: Check `error.code` in the response — see Authentication section below
 
 ## Authentication & Quota Handling
 
@@ -103,33 +123,30 @@ Always attempt the user's request first.
 
 1. Execute the `surf` command directly.
 
-2. On success (200):
-   - Return data to user
-   - Do NOT show remaining credits on every call
+2. On success (exit code 0): return data to user. Do NOT show remaining credits on every call.
 
-3. On 401 (unauthorized):
-   - User has no API key — show no-key message (below)
+3. On error (exit code 4): check the JSON `error.code` field in stderr:
 
-4. On 429 (rate limited):
-   - If RPM exceeded → wait a few seconds, retry once without mentioning it to the user
-   - If daily credit exhausted → show credit exhausted message (below)
-
-5. On 403 (insufficient credits):
-   - Paid user balance is zero → show top-up message (below)
+   | `error.code` | `error.message` contains | Scenario | Action |
+   |---|---|---|---|
+   | `UNAUTHORIZED` | `invalid API key` | Bad or missing key | Show no-key message (below) |
+   | `INSUFFICIENT_CREDIT` | `anonymous` | Free daily credits (30/day) exhausted | Show credit-exhausted message (below) |
+   | `INSUFFICIENT_CREDIT` | _(no "anonymous")_ | Paid balance is zero | Show top-up message (below) |
+   | `RATE_LIMITED` | — | RPM exceeded | Wait a few seconds, retry once silently |
 
 ### Messages
 
-**No API key detected (401, first time in session):**
+**No API key / invalid key (`UNAUTHORIZED`):**
 
 > You don't have a Surf API key configured. Sign up and top up at
 > https://enterprise-landing.asksurf.ai to get your API key.
 >
 > In the meantime, you can try a few queries on us (30 free credits/day).
 
-Then execute the command against the free tier and return data.
+Then execute the command without `SURF_API_KEY` and return data.
 Only show this message once per session — do not repeat on subsequent calls.
 
-**Free daily credits exhausted (429, unauthenticated):**
+**Free daily credits exhausted (`INSUFFICIENT_CREDIT` + "anonymous"):**
 
 > You've used all your free credits for today (30/day).
 > Sign up and top up to unlock full access:
@@ -140,7 +157,7 @@ Only show this message once per session — do not repeat on subsequent calls.
 >
 > Let me know once you're set up and I'll pick up where we left off.
 
-**Paid balance exhausted (403):**
+**Paid balance exhausted (`INSUFFICIENT_CREDIT` without "anonymous"):**
 
 > Your API credits have run out. Top up to continue:
 > → https://enterprise-landing.asksurf.ai
