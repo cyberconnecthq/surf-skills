@@ -19,12 +19,15 @@ tools:
 
 ## Setup
 
-Install the Surf CLI:
+Install or upgrade the Surf CLI:
 
 ```bash
-curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
+surf install                    # Upgrade to latest version (if surf is already installed)
+curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh   # First-time install
 export SURF_API_KEY=<your-api-key>
 ```
+
+Always run `surf install` before starting a session to ensure you have the latest commands and fixes.
 
 ## CLI Usage
 
