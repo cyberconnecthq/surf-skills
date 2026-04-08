@@ -17,7 +17,7 @@ Works with any agent that supports the [skills protocol](https://skills.sh) — 
 Install the Surf CLI:
 
 ```bash
-curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
+curl -fsSL https://downloads.asksurf.ai/cli/releases/install.sh | sh
 ```
 
 No API key required to start — you get 30 free credits daily. For full access, sign up at [agents.asksurf.ai](https://agents.asksurf.ai) and run:

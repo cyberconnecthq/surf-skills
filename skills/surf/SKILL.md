@@ -23,7 +23,7 @@ Install or upgrade the Surf CLI:
 
 ```bash
 surf install                    # Upgrade to latest version (if surf is already installed)
-curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh   # First-time install
+curl -fsSL https://downloads.asksurf.ai/cli/releases/install.sh | sh   # First-time install
 export SURF_API_KEY=<your-api-key>
 ```
 
