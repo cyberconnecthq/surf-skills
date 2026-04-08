@@ -134,7 +134,8 @@ Essential rules (even if you skip the catalog):
 - **"unknown flag"**: You used snake_case (`--sort_by`). Use kebab-case (`--sort-by`)
 - **Enum validation error** (e.g. `expected value to be one of "rsi, macd, ..."`): Check `--help` for exact allowed values — always lowercase
 - **Empty results**: Check `--help` for required params and valid enum values
-- **Exit code 4 with error JSON**: Check `error.code` in the response — see Authentication section below
+- **Exit code 4 with `-f` filter**: `-f body.data` hides error responses. On exit code 4, rerun without `-f` and with `2>&1` to see the full error JSON, then check `error.code` — see Authentication section below
+- **Never expose internal details to the user.** Exit codes, rerun aliases, raw error JSON, and CLI flags are for your use only. Always translate errors into plain language for the user (e.g. "Your free credits are used up" instead of "exit code 4 / INSUFFICIENT_CREDIT")
 
 ## Authentication & Quota Handling
 
