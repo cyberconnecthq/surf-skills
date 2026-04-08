@@ -92,7 +92,7 @@ When the user asks for crypto data:
 | Project info, DeFi TVL, protocol metrics | `project` |
 | Order books, candlesticks, funding rates | `exchange` |
 | VC funds, portfolios, rankings | `fund` |
-| Transaction lookup, gas prices, SQL | `onchain` |
+| Transaction lookup, gas prices, on-chain queries | `onchain` |
 | CEX-DEX matching, market matching | `matching` |
 | Kalshi binary markets | `kalshi` |
 | Polymarket prediction markets | `polymarket` |
