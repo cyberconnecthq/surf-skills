@@ -18,7 +18,7 @@ surf-skills/
 Install the Surf CLI:
 
 ```bash
-curl -fsSL https://agent.asksurf.ai/cli/releases/install.sh | sh
+curl -fsSL https://downloads.asksurf.ai/cli/releases/install.sh | sh
 export SURF_API_KEY=<your-api-key>
 surf list-operations           # verify: lists all available commands
 ```
