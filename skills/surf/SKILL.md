@@ -19,12 +19,10 @@ tools:
 
 ## Setup
 
-Install or upgrade the Surf CLI:
+Install the Surf CLI following the guide at https://agents.asksurf.ai/docs/cli
 
 ```bash
 surf install                    # Upgrade to latest version (if surf is already installed)
-curl -fsSL https://downloads.asksurf.ai/cli/releases/install.sh | sh   # First-time install
-export SURF_API_KEY=<your-api-key>
 ```
 
 Always run `surf install` and `surf sync` at the start of every session —
@@ -213,7 +211,7 @@ Only show this message once per session — do not repeat on subsequent calls.
 Save it persistently with `surf auth` so they never need to set it again:
 
 ```bash
-surf auth --api-key sk-xxx   # Save API key to system keychain
+surf auth --api-key $API_KEY   # Save API key to system keychain
 surf auth                    # Show current auth status
 surf auth --clear            # Clear saved API key
 ```
