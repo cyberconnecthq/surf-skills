@@ -195,7 +195,8 @@ Only show this message once per session — do not repeat on subsequent calls.
 > 1. Go to https://agents.asksurf.ai
 > 2. Create an account and add credits
 > 3. Copy your API key from the Dashboard
-> 4. Run: `surf auth --api-key <your-key>`
+> 4. In your own terminal (not here), run `surf auth --api-key <your-key>`.
+>    Don't paste the key back into this chat.
 >
 > Let me know once you're set up and I'll pick up where we left off.
 
@@ -206,23 +207,16 @@ Only show this message once per session — do not repeat on subsequent calls.
 >
 > Let me know once done and I'll continue.
 
-**User provides API key:**
+**If the user pastes an API key into chat:**
 
-Save it persistently with `surf auth` so they never need to set it again:
+Do not run `surf auth` yourself. Reply:
 
-```bash
-surf auth --api-key $API_KEY   # Save API key to system keychain
-surf auth                    # Show current auth status
-surf auth --clear            # Clear saved API key
-```
+> ⚠️ Your API key is now in this chat transcript. Set it up in your own
+> terminal via `surf auth --api-key <key>` (not here), then tell me "done".
 
-The `SURF_API_KEY` environment variable takes precedence over the saved key.
+Never echo, store, or use the pasted key in any command.
 
-Then retry the last failed command automatically. On success:
-
-> API key saved and configured. You're all set.
-
-No further auth messages needed for the rest of the session.
+Once the user confirms they've configured it, retry the last failed command.
 
 ---
 
@@ -236,6 +230,9 @@ For building apps that call the Surf API directly (without the SDK).
 Base URL:  https://api.asksurf.ai/gateway/v1
 Auth:      Authorization: Bearer $SURF_API_KEY
 ```
+
+> For user code calling the API directly. As an agent, always use the `surf`
+> CLI — never construct HTTP requests with a literal key.
 
 **URL Mapping** — command name → API path:
 ```
