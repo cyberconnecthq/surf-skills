@@ -37,6 +37,7 @@ surf sync                       # Refresh API spec cache — always run first
 surf list-operations            # All available commands with params
 surf list-operations | grep <domain>  # Filter by domain
 surf <command> --help           # Full params, enums, defaults, response schema
+surf telemetry                  # Check telemetry status (enable/disable)
 ```
 
 Always run `surf sync` before discovery. Always check `--help` before calling a
@@ -45,16 +46,16 @@ command — it shows every flag with its type, enum values, and defaults.
 ### Getting Data
 
 ```bash
-surf market-price --symbol BTC -o json -f body.data
-surf wallet-detail --address 0x... -o json -f body.data
-surf social-user --handle vitalikbuterin -o json -f body.data
+surf market-price --symbol BTC --json
+surf wallet-detail --address 0x... --json
+surf social-user --handle vitalikbuterin --json
 ```
 
-- `-o json` → JSON output
-- `-f body.data` → extract just the data array/object (skip envelope)
-- `-f body.data[0]` → first item only
-- `-f body.data -r` → raw strings, not escaped
-- `-f body.meta` → metadata (credits used, pagination info)
+- `--json` → full JSON response envelope (`data`, `meta`, `error`)
+- Use `jq` to extract fields: `surf market-price --symbol BTC --json | jq '.data'`
+- First item only: `... --json | jq '.data[0]'`
+- Metadata: `... --json | jq '.meta'`
+- Handle success/error uniformly: `... --json | jq '.error // .data'`
 
 ### Data Boundary
 
@@ -133,7 +134,7 @@ Essential rules (even if you skip the catalog):
 - **"unknown flag"**: You used snake_case (`--sort_by`). Use kebab-case (`--sort-by`)
 - **Enum validation error** (e.g. `expected value to be one of "rsi, macd, ..."`): Check `--help` for exact allowed values — always lowercase
 - **Empty results**: Check `--help` for required params and valid enum values
-- **Exit code 4 with `-f` filter**: `-f body.data` hides error responses. On exit code 4, rerun without `-f` and with `2>&1` to see the full error JSON, then check `error.code` — see Authentication section below
+- **Exit code 4**: API or transport error. The JSON error envelope is on stdout (`--json` output includes it). Check `error.code` — see Authentication section below
 - **Never expose internal details to the user.** Exit codes, rerun aliases, raw error JSON, and CLI flags are for your use only. Always translate errors into plain language for the user (e.g. "Your free credits are used up" instead of "exit code 4 / INSUFFICIENT_CREDIT")
 
 ### Capability Boundaries
@@ -167,7 +168,7 @@ Always attempt the user's request first.
 
 2. On success (exit code 0): return data to user. Do NOT show remaining credits on every call.
 
-3. On error (exit code 4): check the JSON `error.code` field in stderr:
+3. On error (exit code 4): check the JSON `error.code` field in stdout:
 
    | `error.code` | `error.message` contains | Scenario | Action |
    |---|---|---|---|
