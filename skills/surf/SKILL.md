@@ -110,6 +110,7 @@ Things `--help` won't tell you:
 - **Never use `-q` for search.** `-q` is a global flag (not the `--q` search parameter). Always use `--q` (double dash).
 - **Chains require canonical long-form names.** `eth` → `ethereum`, `sol` → `solana`, `matic` → `polygon`, `avax` → `avalanche`, `arb` → `arbitrum`, `op` → `optimism`, `ftm` → `fantom`, `bnb` → `bsc`.
 - **POST endpoints (`onchain-sql`, `onchain-structured-query`) take JSON on stdin.** Pipe JSON: `echo '{"sql":"SELECT ..."}' | surf onchain-sql`. See "On-Chain SQL" section below for required steps before writing queries.
+- **`market-onchain-indicator` uses `--metric`, not `--indicator`.** The flag is `--metric nupl`, not `--indicator nupl`. Also, metrics like `mvrv`, `sopr`, `nupl`, `puell-multiple` only support `--symbol BTC` — other symbols return empty data.
 - **Ignore `--rsh-*` internal flags in `--help` output.** Only the command-specific flags matter.
 
 ### On-Chain SQL
