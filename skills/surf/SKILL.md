@@ -28,7 +28,7 @@ Install the Surf CLI following the guide at https://agents.asksurf.ai/docs/cli/i
 bash <skill-directory>/scripts/check-for-updates.sh   # Check for updates
 ```
 
-Always run this at the start of every session. If the script prints any warnings, STOP and ask the user if they want to update before proceeding. Do not skip updates silently.
+Always run this at the start of every session. If the script prints "CLI update required", tell the user they must update before using surf — do not offer to skip. If it prints "skill update available", ask the user if they want to update.
 
 ## CLI Usage
 
