@@ -7,6 +7,8 @@ description: >-
   Use whenever the user needs crypto data, asks about prices/wallets/tokens/DeFi, wants
   to investigate on-chain activity, or is building something that consumes crypto data —
   even if they don't say "surf" explicitly.
+metadata:
+  version: "0.0.0"
 tools:
   - bash
 ---
@@ -22,11 +24,12 @@ tools:
 Install the Surf CLI following the guide at https://agents.asksurf.ai/docs/cli/introduction
 
 ```bash
+bash <skill-directory>/scripts/update-check.sh   # Auto-update this skill
 surf install                    # Upgrade to latest version (if surf is already installed)
+surf sync                       # Refresh API spec cache
 ```
 
-Always run `surf install` and `surf sync` at the start of every session —
-`install` updates the CLI binary, `sync` refreshes the API spec cache.
+Always run these three commands at the start of every session.
 
 ## CLI Usage
 
