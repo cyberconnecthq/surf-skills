@@ -95,7 +95,7 @@ When the user asks for crypto data:
 | Cross-platform prediction metrics | `prediction-market` |
 | News feed and articles | `news` |
 | Cross-domain entity search | `search` |
-| Fetch/parse any URL | `web` |
+| Fetch/parse any URL | `web-fetch` |
 
 ### Gotchas
 
