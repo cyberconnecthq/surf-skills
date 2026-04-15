@@ -52,10 +52,6 @@ surf social-user --handle vitalikbuterin --json
 ```
 
 - `--json` → full JSON response envelope (`data`, `meta`, `error`)
-- Use `jq` to extract fields: `surf market-price --symbol BTC --json | jq '.data'`
-- First item only: `... --json | jq '.data[0]'`
-- Metadata: `... --json | jq '.meta'`
-- Handle success/error uniformly: `... --json | jq '.error // .data'`
 
 ### Data Boundary
 
