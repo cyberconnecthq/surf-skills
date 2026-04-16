@@ -8,8 +8,7 @@ description: >-
   to investigate on-chain activity, or is building something that consumes crypto data —
   even if they don't say "surf" explicitly.
 metadata:
-  version: "0.0.0"
-compatibility: "surf >= 1.0.0-alpha.40"
+  version: "0.0.2"
 tools:
   - bash
 ---
@@ -25,10 +24,18 @@ tools:
 Install the Surf CLI following the guide at https://agents.asksurf.ai/docs/cli/introduction
 
 ```bash
-bash <skill-directory>/scripts/check-for-updates.sh   # Check for updates
+surf install
+surf sync
 ```
 
-Always run this at the start of every session. If the script prints "CLI update required", tell the user they must update before using surf — do not offer to skip. If it prints "skill update available", ask the user if they want to update.
+After `surf install`, check the `Minimum skill version` in its output against
+this skill's `metadata.version` (v0.0.2). If the minimum is higher, run:
+
+```bash
+npx skills check asksurf-ai/surf-skills --skill surf
+```
+
+Then tell the user to exit and restart the session for the updated skill to take effect.
 
 ## CLI Usage
 
