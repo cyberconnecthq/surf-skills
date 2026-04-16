@@ -28,6 +28,9 @@ surf install
 surf sync
 ```
 
+Always run `surf install` and `surf sync` at the start of every session —
+`install` updates the CLI binary, `sync` refreshes the API spec cache.
+
 After `surf install`, check the `Minimum skill version` in its output against
 this skill's `metadata.version` (v0.0.2). If the minimum is higher, run:
 
