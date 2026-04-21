@@ -185,11 +185,68 @@ Things `--help` won't tell you:
 - **Not all endpoints share the same flags.** Some use `--time-range`, others use `--from`/`--to`, others have neither. Always run `surf <cmd> --help` before constructing a command to check the exact parameter shape.
 - **Enum values are always lowercase.** `--indicator rsi`, NOT `RSI`. Check `--help` for exact enum values — the CLI validates strictly.
 - **Never use `-q` for search.** `-q` is a global flag (not the `--q` search parameter). Always use `--q` (double dash).
+- **Don't guess flag names from convention.** `--query`, `--keyword`, `--username` look natural but are not valid anywhere. The canonical names are `--q` (search), `--handle` (X/Twitter account), `--address` (wallet or contract address), `--symbol` (ticker). Recent CLI versions suggest the right flag on "unknown flag" errors — read the suggestion before retrying.
 - **Chains require canonical long-form names.** `eth` → `ethereum`, `sol` → `solana`, `matic` → `polygon`, `avax` → `avalanche`, `arb` → `arbitrum`, `op` → `optimism`, `ftm` → `fantom`, `bnb` → `bsc`.
 - **POST endpoints (`onchain-sql`, `onchain-structured-query`) take JSON on stdin.** Pipe JSON: `echo '{"sql":"SELECT ..."}' | surf onchain-sql`. See "On-Chain SQL" section below for required steps before writing queries.
 - **`market-onchain-indicator` uses `--metric`, not `--indicator`.** The flag is `--metric nupl`, not `--indicator nupl`. Also, metrics like `mvrv`, `sopr`, `nupl`, `puell-multiple` only support `--symbol BTC` — other symbols return empty data.
 - **`news-feed --project X` is a tag filter, not a topic search.** It only returns articles that the indexer tagged against that specific `project_id`. Articles about an event often get tagged to a different project (or none) and get silently filtered out. For queries centered on an **event, deal, incident, exchange action, regulator move, or person** (e.g. "Bybit-led funding round", "CHIP listed on Coinbase", "North Korea DeFi attacks", "Matt Hougan interview"), use **`search-news --q "<keywords>"`** — it's full-text search across all 17 sources (coindesk, cointelegraph, theblock, decrypt, dlnews, etc.) and won't drop off-tag articles. Reserve `news-feed --project` for queries about a **named crypto project** ("Uniswap latest news"). If `news-feed --project` returns empty, fall back to `search-news` before concluding no coverage exists.
 - **Ignore `--rsh-*` internal flags in `--help` output.** Only the command-specific flags matter.
+
+### `--time-range` vs `--interval` (different concepts)
+
+These two flags look similar and routinely get swapped. They mean different things and many endpoints accept only one:
+
+| Flag | Meaning | Typical values | Use when |
+|------|---------|----------------|----------|
+| `--interval` | Bucket size for each point in a time-series | `5m`, `1h`, `1d`, `7d`, `1w` | You want a series of data points (chart, OHLCV, trend) |
+| `--time-range` | Window of history to return — how much data, not how it's bucketed | `7d`, `30d`, `90d`, `1y`, `max` | You want a snapshot aggregated over a period, or want to bound a series |
+
+Rules of thumb:
+- If the endpoint returns a single snapshot/ranking, it uses `--time-range` (e.g. `social-ranking`, `market-liquidation-exchange-list`, `onchain-bridge-ranking`).
+- If the endpoint returns an OHLCV-style time-series, it uses `--interval` (e.g. `exchange-klines`, `market-price-indicator`, `market-liquidation-chart`, `social-mindshare`).
+- A few endpoints take **both** (e.g. `polymarket-prices`, `kalshi-prices`) — `--interval` sets the bucket size inside the `--time-range` window.
+- `social-mindshare` requires `--interval` (no default); it does NOT accept `--time-range`. Bound the range with `--from`/`--to`.
+- Always check `--help` — hermod's OpenAPI spec now spells out "This endpoint uses `interval` only" (or vice versa) in the flag description.
+
+### Pagination pattern (snapshot vs list)
+
+Not every endpoint paginates. Passing `--limit`/`--offset` where they don't exist returns "unknown flag".
+
+- **List endpoints** (have `--limit`, `--offset`, response meta has `total`): `polymarket-markets`, `polymarket-events`, `polymarket-trades`, `token-holders`, `token-transfers`, `token-dex-trades`, `social-user-posts`, `search-*`, `wallet-transfers`, etc.
+- **Cursor endpoints** (have `--cursor`, response meta has `has_more` + `next_cursor`): a handful of `social-*` and `search-people`.
+- **Snapshot endpoints (no pagination)** — do NOT pass `--limit` or `--offset`: `market-futures`, `market-liquidation-exchange-list`, `social-mindshare`, `social-detail`, `social-sentiment`, `project-detail`, `wallet-detail`, and most `*-detail` / `*-ranking` endpoints return the full response in one shot.
+
+When in doubt, run `surf <cmd> --help` and look for `--limit`/`--offset` — if absent, it's a snapshot.
+
+### Commands that look real but don't exist
+
+Agents frequently hallucinate these by pattern-matching from sibling commands. None of them exist — use the replacement:
+
+| Hallucinated | Doesn't exist. Use instead |
+|---|---|
+| `search-token` | For a contract: `token-holders --address <addr>` or `token-dex-trades --address <addr>`. To resolve a ticker to a contract, run `surf list-operations \| grep search` and pick the right `search-*` — there is no token-search entry. |
+| `wallet-positions` | `wallet-detail --address <addr>` (DeFi positions are part of the detail response) |
+| `market-token-price` | `market-price --symbol <BTC>` (NOT `--token`) |
+| `social-search` | `search-social --q <keyword>` (search-* prefix, not domain-first) |
+
+If `surf list-operations \| grep <guess>` returns nothing, the command doesn't exist — don't invent it. Run `grep` against adjacent keywords instead.
+
+### Required-flag cheat sheet for high-traffic commands
+
+`--help` shows this, but agents sometimes skip that step. Below are the required flags for the ten most-called commands so you can build the call in one shot. For anything not listed, consult `--help`.
+
+| Command | Required flags | Notes |
+|---|---|---|
+| `polymarket-markets` | `--market-slug` | Single Yes/No outcome. Discover slugs via `search-polymarket --q <keyword>`. For multi-outcome questions use `polymarket-events --event-slug`. |
+| `polymarket-events` | `--event-slug` | Multi-outcome question with nested markets. Discover slugs via `search-polymarket`. |
+| `polymarket-prices` | `--condition-id` | Condition IDs come from `polymarket-markets` or `polymarket-events` responses. |
+| `social-mindshare` | `--q`, `--interval` | Time-series; bound with `--from`/`--to`. No `--time-range` here. |
+| `social-user` | `--handle` | X/Twitter handle without `@`. Not `--username`. |
+| `market-price` | `--symbol` | Uppercase ticker like `BTC`. |
+| `token-holders` | `--address`, `--chain` | Contract address, NOT a ticker. Resolve ticker→contract via a `search-*` command first. |
+| `token-dex-trades` | `--address` | Same — contract address, 0x-hex (EVM only). |
+| `search-project` | `--q` | Free-text. Returns project candidates for downstream `--id` lookups. |
+| `kalshi-prices` | `--ticker` | Kalshi market ticker (e.g. `KXBTC2026250-...`). Find via `search-kalshi`. |
 
 ### On-Chain SQL
 
