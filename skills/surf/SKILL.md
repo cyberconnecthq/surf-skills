@@ -17,7 +17,7 @@ tools:
 
 `surf` is a global CLI for querying crypto data. Run it directly (NOT via `npx surf`).
 
-**CLI flags use kebab-case** (e.g. `--sort-by`, `--token-address`), NOT snake_case.
+**CLI flags are kebab-case** (e.g. `--sort-by`, `--token-address`), as shown in `--help`.
 
 ## Setup
 
@@ -185,7 +185,7 @@ A partial map of common domains — **not every command follows these prefixes, 
 
 Things `--help` won't tell you:
 
-- **Flags are kebab-case, not snake_case.** `--sort-by`, `--from`, `--token-address` — NOT `--sort_by`. The CLI will reject snake_case flags with "unknown flag".
+- **Flags are kebab-case.** `--sort-by`, `--from`, `--token-address`. `--help` prints every flag in kebab-case — match it.
 - **Not all endpoints share the same flags.** Some use `--time-range`, others use `--from`/`--to`, others have neither. Always run `surf <cmd> --help` before constructing a command to check the exact parameter shape.
 - **Enum values are always lowercase.** `--indicator rsi`, NOT `RSI`. Check `--help` for exact enum values — the CLI validates strictly.
 - **Never use `-q` for search.** `-q` is a global flag (not the `--q` search parameter). Always use `--q` (double dash).
