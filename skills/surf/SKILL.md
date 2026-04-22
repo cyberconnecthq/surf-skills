@@ -8,7 +8,7 @@ description: >-
   to investigate on-chain activity, or is building something that consumes crypto data —
   even if they don't say "surf" explicitly.
 metadata:
-  version: "0.0.2"
+  version: "0.0.3"
 tools:
   - bash
 ---
