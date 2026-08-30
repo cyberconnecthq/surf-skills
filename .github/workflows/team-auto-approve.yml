@@ -4,20 +4,30 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   auto-approve:
+    # Only approve pull requests opened by trusted repository participants.
+    if: >-
+      github.event.pull_request.author_association == 'OWNER' ||
+      github.event.pull_request.author_association == 'MEMBER' ||
+      github.event.pull_request.author_association == 'COLLABORATOR'
     runs-on: ubuntu-latest
     steps:
-      - name: Execute Approve
+      - name: Execute approval
         env:
           GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          # Check if Token exists (prevent configuration errors)
+          # Check that the approval token is configured before invoking GitHub CLI.
           if [ -z "$GH_TOKEN" ]; then
-            echo "Error: No available Token found. Please ensure secrets.AUTO_APPROVE_TOKEN is set."
+            echo "Error: GITOPS_PAT is not configured."
             exit 1
           fi
 
-          # Execute approval
-          echo "Approving PR #${{ github.event.pull_request.number }}..."
-          gh pr review ${{ github.event.pull_request.html_url }} --approve --body "🚀 Auto-approved via Team Bot Action."
+          echo "Approving PR #$PR_NUMBER..."
+          gh pr review "$PR_URL" --approve --body "Auto-approved by the team bot action."
